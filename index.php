@@ -1,73 +1,136 @@
 <?php
-require_once 'pages/home/header.php';
 
-$page = isset($_GET['page']) ? $_GET['page'] : 'home';
+session_start();
 
-?>
+// Define the root directory to use for includes and set the base URL
+define('BASE_URL', '/ems/');  // Update this to match your actual base URL
+define('ROOT_PATH', dirname(__DIR__) . '/ems');
 
-<main class="container main-content">
-    <div class="text-center">
-        <h1>Welcome to Event Management</h1>
-        <p class="lead">Plan, organize, and manage your events seamlessly with our system.</p>
-    </div>
+// Adjust security headers
+header("Content-Security-Policy: default-src 'self'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; script-src 'self' 'unsafe-inline' https://code.jquery.com https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; font-src 'self' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; img-src 'self' data:;");
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('X-XSS-Protection: 1; mode=block');
+header('Referrer-Policy: no-referrer');
+header('Permissions-Policy: geolocation=(), microphone=()'); // Customize as needed
 
-    <div class="features text-center">
-        <h2>Why Choose Us?</h2>
-        <div class="row">
-            <div class="col-md-4">
-                <i class="fa-solid fa-calendar-check feature-icon"></i>
-                <h4>Easy Event Management</h4>
-                <p>Create and manage events effortlessly with our intuitive tools.</p>
-            </div>
-            <div class="col-md-4">
-                <i class="fa-solid fa-users feature-icon"></i>
-                <h4>Join the Community</h4>
-                <p>Connect with other attendees and make your events memorable.</p>
-            </div>
-            <div class="col-md-4">
-                <i class="fa-solid fa-download feature-icon"></i>
-                <h4>Download Reports</h4>
-                <p>Admins can download detailed event and attendee reports with ease.</p>
-            </div>
-        </div>
-    </div>
+// Autoload Controllers and other necessary classes
+spl_autoload_register(function ($className) {
+    $classPath = ROOT_PATH . '/' . str_replace('\\', '/', $className) . '.php';
+    if (file_exists($classPath)) {
+        require_once $classPath;
+    } else {
+        // Handle file not found
+        http_response_code(500);
+        echo "500 - Internal Server Error";
+        exit;
+    }
+});
 
-    <div class="testimonials">
-        <h2>What Our Users Say</h2>
-        <div class="row">
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <p>"This platform has made event planning a breeze. I love how easy it is to create events and
-                            track registrations."</p>
-                        <p class="text-muted">- John Doe</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <p>"The community feature is fantastic! I've connected with so many interesting people through
-                            this platform."</p>
-                        <p class="text-muted">- Jane Smith</p>
-                    </div>
-                </div>
-            </div>
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <p>"The reporting feature is incredibly helpful for analyzing event performance. It gives me
-                            valuable insights."</p>
-                        <p class="text-muted">- David Lee</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+// Include the database connection file
+require_once ROOT_PATH . '/config/database.php';
 
-</main>
+// Initialize the logger
+require_once ROOT_PATH . '/app/Helpers/Logger.php';
+use App\Helpers\Logger;
 
-<?php
+$logger = new Logger(__DIR__ . '/logs/debug.log');
 
-require_once 'pages/home/footer.php';
-?>
+// Initialize the PDO database connection
+try {
+    $database = Database::getInstance();
+    $pdo = $database->getConnection();
+} catch (PDOException $e) {
+    // Handle database connection error
+    $logger->log("Database connection failed: " . $e->getMessage());
+    http_response_code(500);
+    echo "500 - Internal Server Error";
+    exit;
+}
+
+// Include the routes file located in the /config folder
+$routesFile = ROOT_PATH . '/config/routes.php';
+if (file_exists($routesFile)) {
+    $routes = include $routesFile;
+} else {
+    $logger->log("Routes configuration file not found.");
+    http_response_code(500);
+    echo "500 - Internal Server Error";
+    exit;
+}
+
+// Get the requested URI and sanitize it
+$requestUri = filter_var(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), FILTER_SANITIZE_URL);
+$requestUri = rtrim(str_replace(BASE_URL, '', $requestUri), '/');  // Remove the base URL and trailing slash
+
+// Log the requested URL
+$logger->log("Requested URL: " . $requestUri);
+
+$routeFound = false;
+
+// Function to match route with dynamic parameters
+function matchRoute($routeUri, $requestUri)
+{
+    // Split the URI into parts
+    $routeParts = explode('/', $routeUri);
+    $requestParts = explode('/', $requestUri);
+
+    // If the number of parts don't match, it's not a match
+    if (count($routeParts) != count($requestParts)) {
+        return false;
+    }
+
+    // Check each part
+    foreach ($routeParts as $index => $part) {
+        // If part is a placeholder (like {id}), skip matching
+        if (preg_match('/^{.*}$/', $part)) {
+            continue;
+        }
+
+        if ($part !== $requestParts[$index]) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+// Loop through all routes to find a match
+foreach ($routes['/ems'] as $routeUri => $route) {
+    if (matchRoute($routeUri, $requestUri)) {
+        $routeFound = true;
+        $controllerName = $route['controller'];
+        $action = $route['action'];
+
+        // Check if the controller class exists
+        if (class_exists($controllerName)) {
+            // Pass the PDO instance when creating the controller
+            $controller = new $controllerName($pdo);
+
+            // Check if the controller method exists
+            if (method_exists($controller, $action)) {
+                // Call the controller's action method
+                call_user_func([$controller, $action]);
+            } else {
+                // 404 - Method Not Found
+                $logger->log("404 Method Not Found - Requested URL: " . $_SERVER['REQUEST_URI']);
+                http_response_code(404);
+                echo "404 - Method Not Found";
+            }
+        } else {
+            // 404 - Controller Not Found
+            $logger->log("404 Controller Not Found - Requested URL: " . $_SERVER['REQUEST_URI']);
+            http_response_code(404);
+            echo "404 - Controller Not Found";
+        }
+
+        break;
+    }
+}
+
+// If no route found, display a 404 error page
+if (!$routeFound) {
+    $logger->log("404 Not Found - Requested URL: " . $_SERVER['REQUEST_URI']);
+    http_response_code(404);
+    echo "404 - Page Not Found";
+}

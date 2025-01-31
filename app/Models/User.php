@@ -181,4 +181,16 @@ class User
 
         return $user;
     }
+
+    // Static method to find a user by ID
+    public static function find(PDO $pdo, int $id): ?self
+    {
+        $query = "SELECT * FROM users WHERE id = :id LIMIT 1";
+        $params = [':id' => $id];
+        $stmt = $pdo->prepare($query);
+        $stmt->execute($params);
+        $userData = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $userData ? (new self($pdo))->createUserObject($userData) : null;
+    }
 }

@@ -6,29 +6,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="description" content="Event Management System (EMS)">
-    <meta name="author" content="Your Company">
+    <meta name="author" content="">
     <title><?= isset($title) ? htmlspecialchars($title, ENT_QUOTES, 'UTF-8') : 'EMS'; ?></title>
 
     <!-- Fonts and Icons -->
-    <link rel="preload" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" as="style">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="icon" href="favicon.ico" type="image/x-icon">
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
 
-    <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <!-- Favicon -->
-    <link rel="icon" href="favicon.ico" type="image/x-icon">
-
-    <!-- Inline Styles -->
     <style>
         body {
             font-family: 'Poppins', sans-serif;
             background-color: #f9f9f9;
             color: #333;
             margin-top: 70px;
+        }
+
+        .navbar {
+            height: 60px;
+            background: #ffffff;
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.15);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 25px;
+            border-bottom: 2px solid rgba(0, 0, 0, 0.05);
+            top: 0;
+            z-index: 1000;
+            transition: all 0.3s ease-in-out;
         }
 
         .navbar-brand {
@@ -114,12 +122,13 @@
         }
     </style>
 
-    <!-- Dynamically load site-specific CSS -->
+    <!-- page-specific css -->
     <?php if (!empty($styles)): ?>
         <?php foreach ($styles as $style): ?>
             <link rel="stylesheet" href="<?= htmlspecialchars($style, ENT_QUOTES, 'UTF-8'); ?>">
         <?php endforeach; ?>
     <?php endif; ?>
+
 </head>
 
 <body>
@@ -136,24 +145,27 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link" href="<?php echo BASE_URL; ?>"><i class="fa fa-home"></i> Home</a>
+                        <a class="nav-link" href="<?php echo BASE_URL . ''; ?>"><i class="fa fa-home"></i> Home</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?php echo BASE_URL . 'auth/login'; ?>"><i
-                                class="fa fa-sign-in-alt"></i> Login</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="<?php echo BASE_URL . 'auth/register'; ?>"><i
-                                class="fa fa-user-plus"></i> Register</a>
-                    </li>
-                    <?php if (isset($_SESSION['user_id'])): ?>
+                    <!-- if user is not logged in -->
+                    <?php if (!isset($_SESSION['user_id'])): ?>
+                        <li class="nav-item">
+                            <a class="nav-link" href="<?php echo BASE_URL . 'login'; ?>"><i class="fa fa-sign-in-alt"></i>
+                                Login</a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="<?php echo BASE_URL . 'register'; ?>"><i class="fa fa-user-plus"></i>
+                                Register</a>
+                        </li>
+                        <!-- user is logged in -->
+                    <?php else: ?>
                         <li class="nav-item">
                             <a class="nav-link" href="<?php echo BASE_URL . 'dashboard'; ?>"><i
                                     class="fa fa-tachometer-alt"></i> Dashboard</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link" href="<?php echo BASE_URL . 'auth/logout'; ?>"><i
-                                    class="fa fa-sign-out-alt"></i> Logout</a>
+                            <a class="nav-link" href="<?php echo BASE_URL . 'logout'; ?>"><i class="fa fa-sign-out-alt"></i>
+                                Logout</a>
                         </li>
                     <?php endif; ?>
                 </ul>
@@ -178,12 +190,10 @@
         <i class="fa fa-arrow-up"></i>
     </button>
 
-    <!-- Bootstrap JS -->
+    <!-- JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
 
-    <!-- Custom Script -->
     <script>
-        // Scroll to Top Button
         const scrollTopBtn = document.getElementById('scrollTopBtn');
 
         window.addEventListener('scroll', () => {
@@ -202,12 +212,13 @@
         }
     </script>
 
-    <!-- Dynamically load site-specific JS -->
+    <!-- page-specific js -->
     <?php if (!empty($scripts)): ?>
         <?php foreach ($scripts as $script): ?>
             <script src="<?= htmlspecialchars($script, ENT_QUOTES, 'UTF-8'); ?>"></script>
         <?php endforeach; ?>
     <?php endif; ?>
+
 </body>
 
 </html>

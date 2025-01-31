@@ -1,0 +1,381 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Models;
+
+use PDO;
+use PDOException;
+use App\Utils\Logger;
+
+
+class Event
+{
+    private PDO $pdo;
+
+    public int $id;
+    public string $name;
+    public string $slug;
+    public string $description;
+    public int $max_capacity;
+    public int $created_by;
+    public string $start_datetime;
+    public string $end_datetime;
+    public string $created_at;
+    public string $updated_at;
+
+    protected Logger $logger;
+    public function __construct(PDO $pdo)
+    {
+        $this->pdo = $pdo;
+    }
+
+    // Execute queries safely
+    private function executeQuery(string $query, array $params = []): bool
+    {
+        try {
+            $stmt = $this->pdo->prepare($query);
+            return $stmt->execute($params);
+        } catch (PDOException $e) {
+            error_log("Database Error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // Fetch single record safely
+    private function fetchSingleRecord(string $query, array $params = []): ?array
+    {
+        try {
+            $stmt = $this->pdo->prepare($query);
+            $stmt->execute($params);
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (PDOException $e) {
+            error_log("Database Error: " . $e->getMessage());
+            return null;
+        }
+    }
+
+    // Fetch multiple records
+    private function fetchRecords(string $query, array $params = []): array
+    {
+        try {
+            $stmt = $this->pdo->prepare($query);
+            $stmt->execute($params);
+            return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        } catch (PDOException $e) {
+            error_log("Database Error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    // Get all events
+    public function getAllEvents(int $limit = 0): array
+    {
+        $query = "SELECT * FROM events ORDER BY start_datetime DESC";
+
+        if ($limit > 0) {
+            $query .= " LIMIT :limit";
+        }
+
+        $stmt = $this->pdo->prepare($query);
+
+        if ($limit > 0) {
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+        }
+
+        $stmt->execute();
+
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function getEvents(int $page, int $limit, string $sort, string $order, string $search): array
+    {
+        $offset = ($page - 1) * $limit;
+
+        $allowedSortColumns = ['id', 'name', 'max_capacity', 'start_datetime', 'end_datetime', 'created_at'];
+        $sort = in_array($sort, $allowedSortColumns) ? $sort : 'id';
+        $order = strtolower($order) === 'desc' ? 'DESC' : 'ASC';
+
+        try {
+            $query = "SELECT e.*, u.fullname AS created_by_name 
+            FROM events e
+            JOIN users u ON e.created_by = u.id";
+            $countQuery = "SELECT COUNT(*) as total FROM events";
+
+            if (!empty($search)) {
+                $searchTerm = "%$search%";
+                $query .= " WHERE name LIKE :search OR description LIKE :search";
+                $countQuery .= " WHERE name LIKE :search OR description LIKE :search";
+            }
+
+            $query .= " ORDER BY $sort $order LIMIT :limit OFFSET :offset";
+
+            $stmt = $this->pdo->prepare($countQuery);
+            if (!empty($search)) {
+                $stmt->bindValue(':search', $searchTerm, PDO::PARAM_STR);
+            }
+            $stmt->execute();
+            $totalResults = $stmt->fetchColumn();
+
+            $stmt = $this->pdo->prepare($query);
+            if (!empty($search)) {
+                $stmt->bindValue(':search', $searchTerm, PDO::PARAM_STR);
+            }
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
+            $events = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $totalPages = ceil($totalResults / $limit);
+
+            return [
+                'events' => $events,
+                'totalPages' => $totalPages,
+                'totalResults' => $totalResults,
+                'showingResults' => count($events),
+            ];
+        } catch (PDOException $e) {
+            throw new PDOException("Database error: " . $e->getMessage());
+        }
+    }
+
+    private function getTotalCount(string $search): int
+    {
+        $query = "SELECT COUNT(*) FROM events WHERE name LIKE :search OR description LIKE :search";
+        $stmt = $this->pdo->prepare($query);
+        $stmt->bindValue(':search', "%$search%", PDO::PARAM_STR);
+        $stmt->execute();
+        return (int) $stmt->fetchColumn();
+    }
+
+
+    public function countAllEvents(): int
+    {
+        $stmt = $this->pdo->query("SELECT COUNT(*) AS total_events FROM events");
+        return $stmt->fetch(PDO::FETCH_ASSOC)['total_events'] ?? 0;
+    }
+
+
+    // Create a new event
+    public function createEvent(array $eventData)
+    {
+        try {
+            $query = "INSERT INTO events (name, slug, description, max_capacity, start_datetime, end_datetime, created_by)
+                  VALUES (:name, :slug, :description, :max_capacity, :start_datetime, :end_datetime, :created_by)";
+            $stmt = $this->pdo->prepare($query);
+
+            $stmt->bindValue(':name', $eventData['name'], PDO::PARAM_STR);
+            $stmt->bindValue(':slug', $eventData['slug'], PDO::PARAM_STR);
+            $stmt->bindValue(':description', $eventData['description'], PDO::PARAM_STR);
+            $stmt->bindValue(':max_capacity', $eventData['max_capacity'], PDO::PARAM_INT);
+            $stmt->bindValue(':start_datetime', $eventData['start_datetime'], PDO::PARAM_STR);
+            $stmt->bindValue(':end_datetime', $eventData['end_datetime'], PDO::PARAM_STR);
+            $stmt->bindValue(':created_by', $eventData['created_by'], PDO::PARAM_INT);
+
+            $stmt->execute();
+
+            return $this->pdo->lastInsertId();
+        } catch (PDOException $e) {
+            throw new PDOException("Failed to create event: " . $e->getMessage());
+        }
+    }
+
+    // Get an event by ID
+    public function getEventById(int $id): ?array
+    {
+        try {
+            $query = "SELECT e.*, u.fullname AS created_by_name 
+                  FROM events e 
+                  JOIN users u ON e.created_by = u.id 
+                  WHERE e.id = :id";
+            $stmt = $this->pdo->prepare($query);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+            $stmt->execute();
+
+            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+        } catch (PDOException $e) {
+            throw new PDOException("Failed to fetch event: " . $e->getMessage());
+        }
+    }
+
+
+    public function updateEvent(int $id, array $eventData): bool
+    {
+        try {
+            $query = "UPDATE events 
+                  SET name = :name, 
+                      slug = :slug, 
+                      description = :description, 
+                      max_capacity = :max_capacity, 
+                      start_datetime = :start_datetime, 
+                      end_datetime = :end_datetime 
+                  WHERE id = :id";
+            $stmt = $this->pdo->prepare($query);
+
+            // Bind parameters
+            $stmt->bindValue(':name', $eventData['name'], PDO::PARAM_STR);
+            $stmt->bindValue(':slug', $eventData['slug'], PDO::PARAM_STR);
+            $stmt->bindValue(':description', $eventData['description'], PDO::PARAM_STR);
+            $stmt->bindValue(':max_capacity', $eventData['max_capacity'], PDO::PARAM_INT);
+            $stmt->bindValue(':start_datetime', $eventData['start_datetime'], PDO::PARAM_STR);
+            $stmt->bindValue(':end_datetime', $eventData['end_datetime'], PDO::PARAM_STR);
+            $stmt->bindValue(':id', $id, PDO::PARAM_INT);
+
+            // Execute the query
+            return $stmt->execute();
+        } catch (PDOException $e) {
+            throw new PDOException("Failed to update event: " . $e->getMessage());
+        }
+    }
+
+
+    // Delete an event
+    public function deleteEvent(int $id): bool
+    {
+        return $this->executeQuery("DELETE FROM events WHERE id = :id", ['id' => $id]);
+    }
+
+    // Search events by name or description
+    public function searchEvents(string $search): array
+    {
+        return $this->fetchRecords(
+            "SELECT * FROM events WHERE name LIKE :search OR description LIKE :search ORDER BY start_datetime DESC",
+            ['search' => "%$search%"]
+        );
+    }
+
+
+
+
+    public function isUserRegistered(int $eventId, int $userId, string $registrationType): bool
+    {
+        $query = "SELECT COUNT(*) FROM attendees WHERE event_id = :event_id AND user_id = :user_id AND registration_type = :registration_type";
+        $stmt = $this->pdo->prepare($query);
+        $stmt->execute([
+            'event_id' => $eventId,
+            'user_id' => $userId,
+            'registration_type' => $registrationType
+        ]);
+
+        return $stmt->fetchColumn() > 0;
+    }
+
+    public function registerAttendee(array $data): bool
+    {
+        $query = "INSERT INTO attendees (event_id, user_id, attendee_name, attendee_email, registered_at, registration_type) 
+              VALUES (:event_id, :user_id, :attendee_name, :attendee_email, :registered_at, :registration_type)";
+        $stmt = $this->pdo->prepare($query);
+
+        return $stmt->execute($data);
+    }
+
+
+    public function getRegisteredAttendeesCount($eventId)
+    {
+        $sql = "SELECT COUNT(*) FROM attendees WHERE event_id = :event_id";
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->bindParam(':event_id', $eventId, PDO::PARAM_INT);
+        $stmt->execute();
+        return (int) $stmt->fetchColumn();
+    }
+
+
+
+    public function generateEventReport(int $eventId): array|false
+    {
+        // Validate event ID
+        if ($eventId <= 0) {
+            return false;
+        }
+
+        try {
+            // Fetch event details
+            $eventQuery = '
+                SELECT 
+                    e.id, 
+                    e.name, 
+                    e.description, 
+                    e.max_capacity, 
+                    e.start_datetime, 
+                    e.end_datetime, 
+                    e.created_at, 
+                    e.updated_at, 
+                    u.fullname AS created_by_name
+                FROM 
+                    events e
+                LEFT JOIN 
+                    users u ON e.created_by = u.id
+                WHERE 
+                    e.id = :eventId
+            ';
+            $eventStmt = $this->pdo->prepare($eventQuery);
+            $eventStmt->execute(['eventId' => $eventId]);
+            $event = $eventStmt->fetch(PDO::FETCH_ASSOC);
+
+            // Return false if event not found
+            if (!$event) {
+                return false;
+            }
+
+            // Fetch attendees with additional details
+            $attendeesQuery = '
+                SELECT 
+                    a.id AS attendee_id, 
+                    a.attendee_name, 
+                    a.attendee_email, 
+                    a.registration_type, 
+                    a.registered_at, 
+                    u.email AS registered_by_email
+                FROM 
+                    attendees a
+                LEFT JOIN 
+                    users u ON a.user_id = u.id
+                WHERE 
+                    a.event_id = :eventId
+                ORDER BY 
+                    a.registered_at DESC
+            ';
+            $attendeesStmt = $this->pdo->prepare($attendeesQuery);
+            $attendeesStmt->execute(['eventId' => $eventId]);
+            $attendees = $attendeesStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Return event and attendees data
+            return [
+                'event' => $event,
+                'attendees' => $attendees,
+            ];
+
+        } catch (\PDOException $e) {
+            // Log the error for debugging
+            error_log('PDOException in generateEventReport: ' . $e->getMessage());
+            return false;
+        }
+    }
+
+
+
+
+    // get attendee by id
+    public function getAttendeeById(int $id): ?array
+    {
+        $query = "SELECT * FROM attendees WHERE id = :id LIMIT 1";
+        $stmt = $this->pdo->prepare($query);
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+
+        if ($stmt->execute()) {
+            return $stmt->fetch(PDO::FETCH_ASSOC);
+        }
+
+        return null;
+    }
+
+    // delete attendee by id
+    public function deleteAttendee(int $id): bool
+    {
+        $query = "DELETE FROM attendees WHERE id = :id";
+        $stmt = $this->pdo->prepare($query);
+        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+
+        return $stmt->execute();
+    }
+}

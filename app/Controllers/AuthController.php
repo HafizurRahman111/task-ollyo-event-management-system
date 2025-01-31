@@ -5,42 +5,32 @@ namespace App\Controllers;
 use App\Models\User;
 use PDO;
 use PDOException;
-use App\Helpers\Logger;
 
 class AuthController extends BaseController
 {
-    private PDO $pdo;
-    private $logger;
-
     private User $userModel;
-
 
     public function __construct(PDO $pdo)
     {
-        $this->pdo = $pdo;
+        parent::__construct($pdo);
         $this->userModel = new User($this->pdo);
-
-        $this->logger = new Logger(__DIR__ . '/logs/debug.log');
     }
 
     public function login(): void
     {
         $this->startSession();
+
+        $this->redirectIfAuthenticated();
+
         $successMessage = $_SESSION['successMessage'] ?? '';
         unset($_SESSION['successMessage']);
-
-        if ($this->isLoggedIn()) {
-            $this->redirect('/ems/dashboard');
-        }
 
         $errors = [];
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Sanitize inputs
             $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
             $password = filter_input(INPUT_POST, 'password', FILTER_DEFAULT);
 
-            // Validate inputs
             if (empty($email) || !filter_var($email, FILTER_VALIDATE_EMAIL)) {
                 $errors[] = "Please enter a valid email address.";
             }
@@ -51,7 +41,6 @@ class AuthController extends BaseController
 
             if (empty($errors)) {
                 try {
-                    // Retrieve user from database
                     $user = $this->userModel->getUserByEmail($email);
 
                     if (!$user || !password_verify($password, $user['password'])) {
@@ -59,25 +48,23 @@ class AuthController extends BaseController
                     } else {
                         $this->loginUser($user);
 
-                        // Handle AJAX request
                         if ($this->isAjaxRequest()) {
                             $this->sendJsonResponse([
                                 'success' => true,
-                                'redirect_url' => '/ems/dashboard',
+                                'redirect_url' => BASE_URL . 'dashboard',
                             ]);
                             return;
                         }
 
-                        $this->redirect('/ems/dashboard');
+                        $this->redirect(BASE_URL . 'dashboard');
                     }
                 } catch (PDOException $e) {
                     $errors[] = "A database error occurred. Please try again later.";
-                    $this->logger->log("Database Error in Login: " . $e->getMessage());
+                    $this->logger->error("Database Error in Login: " . $e->getMessage());
                 }
             }
         }
 
-        // Handle response
         if ($this->isAjaxRequest()) {
             $this->sendJsonResponse([
                 'success' => false,
@@ -98,17 +85,17 @@ class AuthController extends BaseController
     {
         $this->startSession();
 
+        $this->redirectIfAuthenticated();
+
         $errors = [];
         $successMessage = '';
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Sanitize inputs
             $fullname = filter_input(INPUT_POST, 'fullname', FILTER_SANITIZE_STRING);
             $email = filter_input(INPUT_POST, 'email', FILTER_SANITIZE_EMAIL);
             $password = filter_input(INPUT_POST, 'password', FILTER_DEFAULT);
             $confirmPassword = filter_input(INPUT_POST, 'confirm_password', FILTER_SANITIZE_STRING);
 
-            // Validate inputs
             if (empty($fullname) || strlen($fullname) < 3 || strlen($fullname) > 250) {
                 $errors[] = "Full name must be between 3 and 250 characters.";
             }
@@ -142,10 +129,10 @@ class AuthController extends BaseController
                     }
                 } catch (PDOException $e) {
                     $errors[] = "A database error occurred. Please try again later.";
-                    $this->logger->log("Database Error in Registration: " . $e->getMessage());
+                    $this->logger->error("Database Error in Registration: " . $e->getMessage());
                 } catch (Exception $e) {
                     $errors[] = $e->getMessage();
-                    $this->logger->log("Registration Error: " . $e->getMessage());
+                    $this->logger->error("Registration Error: " . $e->getMessage());
                 }
             }
 
@@ -161,33 +148,11 @@ class AuthController extends BaseController
         }
     }
 
-
     public function logout(): void
     {
         $this->startSession();
         $this->logoutUser();
-        $this->redirect('/ems/home');
-    }
-
-    private function isLoggedIn(): bool
-    {
-        return isset($_SESSION['user_id']) && $_SESSION['logged_in'] === true;
-    }
-
-    private function startSession(): void
-    {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-    }
-
-    private function loginUser(array $user): void
-    {
-        session_regenerate_id(true);
-        $_SESSION['user_id'] = $user['id'];
-        $_SESSION['user_email'] = $user['email'];
-        $_SESSION['user_name'] = $user['fullname'];
-        $_SESSION['logged_in'] = true;
+        $this->redirect(BASE_URL . 'login');
     }
 
     private function logoutUser(): void
@@ -196,26 +161,4 @@ class AuthController extends BaseController
         session_destroy();
     }
 
-    private function redirect(string $url): void
-    {
-        header("Location: $url");
-        exit;
-    }
-
-    private function isAjaxRequest(): bool
-    {
-        return isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
-    }
-
-    private function sendJsonResponse(array $data): void
-    {
-        header('Content-Type: application/json');
-        echo json_encode($data);
-    }
-
-    private function renderView(string $view, array $data = []): void
-    {
-        $data['content'] = $this->loadView($view, $data);
-        $this->loadLayout('layouts/site_layout', $data);
-    }
 }

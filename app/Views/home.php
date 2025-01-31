@@ -1,13 +1,11 @@
-<!-- Hero Section -->
-<section class="hero" style="background-image: url('https://via.placeholder.com/1920x1080');">
+<section class="hero">
     <div class="container text-center hero-content">
         <h1>Welcome to EMS <br /> Event Management System</h1>
         <p>Plan, organize, and manage your events seamlessly.</p>
-        <a href="<?php echo BASE_URL . 'auth/register'; ?>" class="btn btn-primary btn-lg" role="button">Get Started</a>
+        <a href="<?php echo BASE_URL . 'register'; ?>" class="btn btn-primary btn-lg" role="button">Get Started</a>
     </div>
 </section>
 
-<!-- Features Section -->
 <section class="features text-center mb-5">
     <h2 class="section-title text-center mb-4">Why Choose Us?</h2>
     <div class="row mt-4">
@@ -29,7 +27,6 @@
     </div>
 </section>
 
-<!-- Featured Events Section -->
 <section class="featured-events py-5">
     <div class="container">
         <h2 class="section-title text-center mb-4">Featured Events</h2>
@@ -45,9 +42,10 @@
                                 </p>
                                 <p><strong>Max Capacity:</strong>
                                     <?= htmlspecialchars($event['max_capacity'], ENT_QUOTES, 'UTF-8'); ?></p>
-                                <p><strong>Start Time:</strong> <?= date('F j, Y, g:i a', strtotime($event['start_time'])); ?>
+                                <p><strong>Start Time:</strong>
+                                    <?= date('d-m-Y, h:i a', strtotime($event['start_datetime'])); ?></p>
+                                <p><strong>End Time:</strong> <?= date('d-m-Y, h:i a', strtotime($event['end_datetime'])); ?>
                                 </p>
-                                <p><strong>End Time:</strong> <?= date('F j, Y, g:i a', strtotime($event['end_time'])); ?></p>
                             </div>
                         </div>
                     </div>

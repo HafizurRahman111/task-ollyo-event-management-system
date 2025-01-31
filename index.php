@@ -1,9 +1,12 @@
 <?php
 
+use App\Utils\Logger;
+
 session_start();
 
-// Define the root directory to use for includes and set the base URL
-define('BASE_URL', '/ems/');  // Update this to match your actual base URL
+
+// Define constants
+define('BASE_URL', '/ems/');
 define('ROOT_PATH', dirname(__DIR__) . '/ems');
 
 // Adjust security headers
@@ -12,7 +15,7 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: DENY');
 header('X-XSS-Protection: 1; mode=block');
 header('Referrer-Policy: no-referrer');
-header('Permissions-Policy: geolocation=(), microphone=()'); // Customize as needed
+header('Permissions-Policy: geolocation=(), microphone=()');
 
 // Autoload Controllers and other necessary classes
 spl_autoload_register(function ($className) {
@@ -20,117 +23,104 @@ spl_autoload_register(function ($className) {
     if (file_exists($classPath)) {
         require_once $classPath;
     } else {
-        // Handle file not found
         http_response_code(500);
         echo "500 - Internal Server Error";
         exit;
     }
 });
 
-// Include the database connection file
 require_once ROOT_PATH . '/config/database.php';
-
-// Initialize the logger
 require_once ROOT_PATH . '/app/Helpers/Logger.php';
-use App\Helpers\Logger;
 
-$logger = new Logger(__DIR__ . '/logs/debug.log');
+$logger = new Logger(ROOT_PATH . '/logs/debug.log');
 
-// Initialize the PDO database connection
 try {
     $database = Database::getInstance();
     $pdo = $database->getConnection();
 } catch (PDOException $e) {
-    // Handle database connection error
-    $logger->log("Database connection failed: " . $e->getMessage());
+    $logger->error("Database connection failed: " . $e->getMessage());
     http_response_code(500);
     echo "500 - Internal Server Error";
     exit;
 }
 
-// Include the routes file located in the /config folder
+// Include the routes file
 $routesFile = ROOT_PATH . '/config/routes.php';
 if (file_exists($routesFile)) {
     $routes = include $routesFile;
 } else {
-    $logger->log("Routes configuration file not found.");
+    $logger->error("Routes configuration file not found.");
     http_response_code(500);
     echo "500 - Internal Server Error";
     exit;
 }
 
-// Get the requested URI and sanitize it
-$requestUri = filter_var(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), FILTER_SANITIZE_URL);
-$requestUri = rtrim(str_replace(BASE_URL, '', $requestUri), '/');  // Remove the base URL and trailing slash
+$requestUri = trim(parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH), '/');
+$requestUri = str_replace(BASE_URL, '', $requestUri);
 
-// Log the requested URL
-$logger->log("Requested URL: " . $requestUri);
+// $logger->info("Requested URL: " . $requestUri);
 
-$routeFound = false;
-
-// Function to match route with dynamic parameters
-function matchRoute($routeUri, $requestUri)
+// Match route with dynamic parameters
+function matchRoute($routePattern, $requestUri)
 {
-    // Split the URI into parts
-    $routeParts = explode('/', $routeUri);
-    $requestParts = explode('/', $requestUri);
+    $routeParts = explode('/', trim($routePattern, '/'));
+    $requestParts = explode('/', trim($requestUri, '/'));
 
-    // If the number of parts don't match, it's not a match
-    if (count($routeParts) != count($requestParts)) {
+    if (count($routeParts) !== count($requestParts)) {
         return false;
     }
 
-    // Check each part
+    $params = [];
     foreach ($routeParts as $index => $part) {
-        // If part is a placeholder (like {id}), skip matching
-        if (preg_match('/^{.*}$/', $part)) {
-            continue;
-        }
-
-        if ($part !== $requestParts[$index]) {
+        if (preg_match('/^{(.*)}$/', $part, $matches)) {
+            $params[$matches[1]] = $requestParts[$index];
+        } elseif ($part !== $requestParts[$index]) {
             return false;
         }
     }
-
-    return true;
+    return $params;
 }
 
-// Loop through all routes to find a match
-foreach ($routes['/ems'] as $routeUri => $route) {
-    if (matchRoute($routeUri, $requestUri)) {
+// Route Matching & Execution
+$routeFound = false;
+foreach ($routes as $route) {
+    $params = matchRoute($route['path'], $requestUri);
+    if ($params !== false) {
         $routeFound = true;
         $controllerName = $route['controller'];
         $action = $route['action'];
 
-        // Check if the controller class exists
-        if (class_exists($controllerName)) {
-            // Pass the PDO instance when creating the controller
+        if (class_exists($controllerName) && method_exists($controllerName, $action)) {
             $controller = new $controllerName($pdo);
 
-            // Check if the controller method exists
-            if (method_exists($controller, $action)) {
-                // Call the controller's action method
-                call_user_func([$controller, $action]);
-            } else {
-                // 404 - Method Not Found
-                $logger->log("404 Method Not Found - Requested URL: " . $_SERVER['REQUEST_URI']);
-                http_response_code(404);
-                echo "404 - Method Not Found";
+            // Execute Middleware Chain
+            $middlewares = $route['middlewares'] ?? [];
+            $next = function () use ($controller, $action, $params) {
+                call_user_func_array([$controller, $action], $params);
+            };
+
+            foreach (array_reverse($middlewares) as $middleware) {
+                $middlewareInstance = is_string($middleware) ? new $middleware : $middleware;
+                $next = function ($request) use ($middlewareInstance, $next) {
+                    return $middlewareInstance->handle($request, $next);
+                };
             }
+
+            // Execute the final action
+            $next(null);
         } else {
-            // 404 - Controller Not Found
-            $logger->log("404 Controller Not Found - Requested URL: " . $_SERVER['REQUEST_URI']);
+            $logger->error("404 - Controller/Method Not Found: $controllerName@$action");
             http_response_code(404);
-            echo "404 - Controller Not Found";
+            exit("404 - Not Found");
         }
 
         break;
     }
 }
 
-// If no route found, display a 404 error page
+// Handle unmatched routes
 if (!$routeFound) {
-    $logger->log("404 Not Found - Requested URL: " . $_SERVER['REQUEST_URI']);
+    $logger->error("404 - Page Not Found: $requestUri");
     http_response_code(404);
-    echo "404 - Page Not Found";
+    exit("404 - Page Not Found");
 }

@@ -2,7 +2,6 @@
     <div class="form-box">
         <h2 class="form-title">Create Account</h2>
 
-        <!-- Display error and success messages -->
         <div id="error-box" class="error-box" aria-live="polite" style="display: none;">
             <ul id="error-list" aria-labelledby="error-message"></ul>
         </div>
@@ -23,21 +22,18 @@
             </div>
         <?php endif; ?>
 
-        <!-- Registration Form -->
-        <form id="registerForm" method="POST" action="<?= BASE_URL . 'auth/register'; ?>" autocomplete="off">
+        <form id="registerForm" method="POST" action="<?= BASE_URL . 'register'; ?>" autocomplete="off">
             <div class="form-group">
                 <label for="fullname">Fullname</label>
                 <input type="text" id="fullname" name="fullname" class="form-control" required minlength="3"
                     maxlength="250" placeholder="Enter your fullname"
                     value="<?= htmlspecialchars($_POST['fullname'] ?? '', ENT_QUOTES); ?>">
             </div>
-
             <div class="form-group">
                 <label for="email">Email</label>
                 <input type="email" id="email" name="email" class="form-control" required maxlength="250"
                     placeholder="Enter your email" value="<?= htmlspecialchars($_POST['email'] ?? '', ENT_QUOTES); ?>">
             </div>
-
             <div class="form-group">
                 <label for="password">Password</label>
                 <div class="password-wrapper">
@@ -46,7 +42,6 @@
                     <button type="button" id="togglePassword" class="password-toggle-btn">👁️</button>
                 </div>
             </div>
-
             <div class="form-group">
                 <label for="confirm_password">Confirm Password</label>
                 <div class="password-wrapper">
@@ -55,11 +50,9 @@
                     <button type="button" id="toggleConfirmPassword" class="password-toggle-btn">👁️</button>
                 </div>
             </div>
-
             <div class="form-group text-end">
-                <a href="<?= BASE_URL . 'auth/login'; ?>">Already have an account? Login</a>
+                <a href="<?= BASE_URL . 'login'; ?>">Already have an account? Login</a>
             </div>
-
             <div class="form-group">
                 <button type="submit" id="submitButton" class="btn btn-custom">Register</button>
             </div>
@@ -112,7 +105,7 @@
 
                 const data = await response.json();
                 if (data.success) {
-                    window.location.href = '<?= BASE_URL . "auth/login"; ?>';
+                    window.location.href = '<?= BASE_URL . "login"; ?>';
                 } else {
                     displayErrors(data.errors || ['Registration failed.']);
                 }

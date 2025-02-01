@@ -7,7 +7,7 @@
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title><?= htmlspecialchars($title ?? 'EMS Dashboard', ENT_QUOTES, 'UTF-8'); ?></title>
 
-    <!-- CSS -->
+    <!-- css -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.2.0/css/all.min.css" />
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -182,6 +182,12 @@
 </head>
 
 <body>
+    <?php
+    $userRole = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : null;
+    $userFullName = isset($_SESSION['user_name']) ? $_SESSION['user_name'] : null;
+    $currentPage = basename($_SERVER['REQUEST_URI']);
+    ?>
+
     <nav class="navbar navbar-expand-lg">
         <div class="container-fluid">
             <span class="navbar-brand text-white">
@@ -194,37 +200,34 @@
             <div class="dropdown ms-auto">
                 <span class="user-dropdown dropdown-toggle text-white d-flex align-items-center" id="userDropdown"
                     data-bs-toggle="dropdown">
-                    <?= htmlspecialchars($userFullName ?? 'User Name', ENT_QUOTES, 'UTF-8'); ?>
+                    <?= htmlspecialchars($userFullName, ENT_QUOTES, 'UTF-8'); ?>
                     <img src="<?= htmlspecialchars($userAvatar ?? BASE_URL . 'public/assets/images/user-sample.jpg', ENT_QUOTES, 'UTF-8'); ?>"
                         alt="User Avatar" class="rounded-circle ms-2" width="35" height="35">
                 </span>
                 <ul class="dropdown-menu dropdown-menu-end">
-                    <li><a class="dropdown-item" href="#">Profile</a></li>
-                    <li><a class="dropdown-item" href="#">Settings</a></li>
+                    <li><a class="dropdown-item" href="<?php echo BASE_URL . 'profile'; ?>">Profile</a></li>
+                    <!-- <li><a class="dropdown-item" href="#">Settings</a></li> -->
                     <li><a class="dropdown-item" href="<?php echo BASE_URL . 'logout'; ?>">Logout</a></li>
                 </ul>
             </div>
         </div>
     </nav>
-    <?php
-    $userRole = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : null;
 
-    $currentPage = basename($_SERVER['REQUEST_URI']);
-    ?>
     <aside class="sidebar" id="sidebar">
         <ul class="nav flex-column">
-            <li class="nav-item role-section">
-                <a href="#" class="nav-link"> <i class="fas fa-user-circle"></i>
+            <li class="nav-item">
+                <a class="nav-link <?php echo $currentPage === 'profile' ? 'active' : ''; ?>"
+                    href="<?php echo BASE_URL . 'profile'; ?>"> <i class="fas fa-user-circle"></i>
                     <span class="nav-text">
-                        <?= htmlspecialchars($userRole ?? 'User', ENT_QUOTES, 'UTF-8'); ?>
+                        <?= $userRole; ?>
                     </span>
                 </a>
             </li>
             <hr />
             <li class="nav-item">
                 <a class="nav-link <?php echo $currentPage === 'dashboard' ? 'active' : ''; ?>"
-                    href="<?php echo BASE_URL . 'dashboard'; ?>"><i class="fas fa-home"></i><span
-                        class="nav-text">Dashboard</span>
+                    href="<?php echo BASE_URL . 'dashboard'; ?>"><i class="fas fa-home"></i>
+                    <span class="nav-text">Dashboard</span>
                 </a>
             </li>
             <?php if ($userRole === 'admin'): ?>
@@ -232,12 +235,6 @@
                     <a class="nav-link <?php echo $currentPage === 'users' ? 'active' : ''; ?>"
                         href="<?php echo BASE_URL . 'users'; ?>"><i class="fas fa-users"></i> <span
                             class="nav-text">Users</span>
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link <?php echo $currentPage === 'attendees' ? 'active' : ''; ?>"
-                        href="<?php echo BASE_URL . 'attendees'; ?>"><i class="fas fa-users"></i> <span
-                            class="nav-text">Attendees</span>
                     </a>
                 </li>
                 <hr />

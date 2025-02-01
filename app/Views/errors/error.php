@@ -5,7 +5,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Error - <?= $title ?></title>
-    <link rel="stylesheet" href="<?= BASE_URL ?>public/assets/css/error.css">
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -105,8 +104,6 @@
             <a href="<?= BASE_URL ?>">Return to Homepage</a>
         </div>
     </div>
-
-    <script src="https://kit.fontawesome.com/a076d05399.js"></script>
 </body>
 
 </html>

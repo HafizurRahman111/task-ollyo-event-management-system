@@ -13,8 +13,7 @@ class BaseController
     public function __construct(PDO $pdo)
     {
         $this->pdo = $pdo;
-        $this->logger = new Logger(__DIR__ . '/logs/debug.log');
-
+        $this->logger = new Logger(__DIR__ . '../../../logs/debug.log');
     }
 
     /**
@@ -113,6 +112,7 @@ class BaseController
         $slug = strtolower($slug);
         return trim($slug, '-');
     }
+
 
     /**
      * Check if the request is an AJAX request.

@@ -9,6 +9,10 @@ class Logger
     public function __construct(string $logFile)
     {
         $this->logFile = $logFile;
+
+        if (!file_exists(dirname($this->logFile))) {
+            mkdir(dirname($this->logFile), 0777, true);
+        }
     }
 
     public function info(string $message, array $context = [])

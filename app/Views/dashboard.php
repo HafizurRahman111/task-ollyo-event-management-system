@@ -17,8 +17,6 @@ $userRole = isset($_SESSION['user_role']) ? $_SESSION['user_role'] : null;
                     </div>
                 </div>
             </div>
-            <!-- Reports -->
-            <!--  -->
         <?php endif; ?>
         <!-- Events -->
         <div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-4">

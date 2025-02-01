@@ -1,180 +1,159 @@
-<style>
-    .error-message {
-        color: #dc3545;
-        font-size: 0.875rem;
-        margin-top: 0.25rem;
-    }
-
-    .form-row {
-        display: flex;
-        gap: 30px;
-        flex-wrap: wrap;
-        min-height: 80px;
-    }
-
-    .form-column {
-        flex: 1;
-        min-width: 280px;
-    }
-
-    .submit-btn {
-        text-align: right;
-    }
-
-    @media (max-width: 768px) {
-        .form-row {
-            flex-direction: column;
-        }
-
-        .form-column {
-            flex: 1 0 100%;
-        }
-    }
-</style>
-
 <div class="container">
-    <div class="card shadow">
-        <div class="card-header bg-primary text-white">
-            <h2 class="mb-0">Create New Event</h2>
+    <h2>Create Event</h2>
+
+    <div id="general-error" class="alert alert-danger d-none"></div>
+
+    <form id="event-form">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="name">Event Name <span class="text-danger">*</span></label>
+                    <input type="text" id="name" name="name" class="form-control" required minlength="5"
+                        maxlength="250">
+                    <div class="invalid-feedback" id="name-error"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description <span class="text-danger">*</span></label>
+                    <textarea id="description" name="description" class="form-control" rows="5" required minlength="10"
+                        maxlength="1000"></textarea>
+                    <div class="invalid-feedback" id="description-error"></div>
+                </div>
+            </div>
+
+            <div class="col-md-6">
+                <div class="form-group">
+                    <label for="max_capacity">Maximum Capacity <span class="text-danger">*</span></label>
+                    <input type="number" id="max_capacity" name="max_capacity" class="form-control" required min="1">
+                    <div class="invalid-feedback" id="max_capacity-error"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="start_datetime">Start Date and Time <span class="text-danger">*</span></label>
+                    <input type="datetime-local" id="start_datetime" name="start_datetime" class="form-control"
+                        required>
+                    <div class="invalid-feedback" id="start_datetime-error"></div>
+                </div>
+
+                <div class="form-group">
+                    <label for="end_datetime">End Date and Time <span class="text-danger">*</span></label>
+                    <input type="datetime-local" id="end_datetime" name="end_datetime" class="form-control" required>
+                    <div class="invalid-feedback" id="end_datetime-error"></div>
+                </div>
+            </div>
         </div>
-        <div class="card-body">
-            <form id="create-event-form" novalidate>
-                <div class="form-row">
-                    <div class="form-column">
-                        <div class="form-group">
-                            <label for="event-name" class="form-label">Event Name</label>
-                            <input type="text" class="form-control" id="event-name" name="name"
-                                placeholder="Enter event name" required minlength="5" maxlength="250">
-                            <div class="invalid-feedback" id="name-error"></div>
-                        </div>
-                    </div>
-                </div>
 
-                <div class="form-row">
-                    <div class="form-column">
-                        <div class="form-group">
-                            <label for="event-max-capacity" class="form-label">Max Capacity</label>
-                            <input type="number" class="form-control" id="event-max-capacity" name="max_capacity"
-                                placeholder="Enter max capacity" min="1" required>
-                            <div class="invalid-feedback" id="max-capacity-error"></div>
-                        </div>
-                    </div>
-                    <div class="form-column">
-                        <div class="form-group">
-                            <label for="event-start-date" class="form-label">Start Date</label>
-                            <input type="datetime-local" class="form-control" id="event-start-date"
-                                name="start_datetime" required>
-                            <div class="invalid-feedback" id="start-date-error"></div>
-                        </div>
-                    </div>
-                    <div class="form-column">
-                        <div class="form-group">
-                            <label for="event-end-date" class="form-label">End Date</label>
-                            <input type="datetime-local" class="form-control" id="event-end-date" name="end_datetime">
-                            <div class="invalid-feedback" id="end-date-error"></div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="form-column">
-                    <div class="form-group">
-                        <label for="event-description" class="form-label">Description</label>
-                        <textarea class="form-control" id="event-description" name="description" rows="3"
-                            placeholder="Enter event description" required></textarea>
-                        <div class="invalid-feedback" id="description-error"></div>
-                    </div>
-                </div>
-
-                <div class="submit-btn">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-plus"></i> Create Event
-                    </button>
-                </div>
-            </form>
+        <div class="form-group d-flex justify-content-end">
+            <button type="submit" class="btn btn-primary">Create Event</button>
         </div>
-    </div>
+    </form>
 </div>
 
 <script>
-    $(document).ready(function () {
-        // Set minimum date for start and end date fields
-        const today = new Date().toISOString().slice(0, 16);
-        $('#event-start-date, #event-end-date').attr('min', today);
+    document.addEventListener('DOMContentLoaded', () => {
+        const eventForm = document.getElementById('event-form');
+        const errorBox = document.getElementById('general-error');
 
-        // Sync start and end date time
-        $('#event-start-date').on('input', function () {
-            $('#event-end-date').attr('min', $(this).val());
+        document.getElementById('start_datetime').addEventListener('change', function () {
+            document.getElementById('end_datetime').setAttribute('min', this.value);
         });
 
-        // Form submission
-        $('#create-event-form').on('submit', function (e) {
-            e.preventDefault();
-            $('.invalid-feedback').text(''); // Clear previous errors
-            $('.form-control').removeClass('is-invalid'); // Remove invalid class
+        eventForm.addEventListener('submit', async (event) => {
+            event.preventDefault();
 
-            const formData = new FormData(this); // Use FormData for cleaner data handling
+            errorBox.classList.add('d-none');
+            errorBox.textContent = '';
+            eventForm.querySelectorAll('.is-invalid').forEach(el => el.classList.remove('is-invalid'));
+            eventForm.querySelectorAll('.invalid-feedback').forEach(el => el.textContent = '');
 
-            // Validate form inputs
-            if (!this.checkValidity()) {
-                e.stopPropagation();
-                $(this).addClass('was-validated');
+            const errors = validateForm();
+            if (errors.length > 0) {
+                displayErrors(errors);
                 return;
             }
 
-            // AJAX request to submit form data
-            $.ajax({
-                url: '<?= BASE_URL ?>events/create',
-                type: 'POST',
-                data: formData,
-                processData: false,
-                contentType: false,
-                dataType: 'json',
-                success: function (response) {
-                    if (response.success) {
-                        Swal.fire({
-                            icon: 'success',
-                            title: 'Event Created!',
-                            text: 'The event has been successfully created.',
-                            confirmButtonText: 'OK'
-                        }).then(() => window.location.href = '<?= BASE_URL ?>events');
+            const submitButton = eventForm.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+
+            const formData = new FormData(eventForm);
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', '<?= BASE_URL . "events/create"; ?>', true);
+
+            xhr.onload = function () {
+                if (xhr.status === 200) {
+                    const data = JSON.parse(xhr.responseText);
+
+                    if (data.success) {
+                        window.location.href = '<?= BASE_URL . "events"; ?>';
                     } else {
-                        if (response.errors) {
-                            displayErrors(response.errors);
-                        } else {
-                            showError('Failed to create the event.');
-                        }
+                        displayErrors(data.errors || ['Event creation failed.']);
                     }
-                },
-                error: function (xhr) {
-                    const response = xhr.responseJSON;
-                    if (response && response.errors) {
-                        displayErrors(response.errors);
-                    } else {
-                        showError('An unexpected error occurred while creating the event.');
+                } else {
+                    console.error('Error during form submission:', xhr.statusText);
+                    displayErrors(['An unexpected error occurred. Please try again.']);
+                }
+                submitButton.disabled = false;
+            };
+
+            xhr.onerror = function () {
+                console.error('Error during form submission:', xhr.statusText);
+                displayErrors(['An unexpected error occurred. Please try again.']);
+                submitButton.disabled = false;
+            };
+
+            xhr.send(formData);
+        });
+
+        const validateForm = () => {
+            const errors = [];
+
+            const name = document.getElementById('name').value.trim();
+            if (name.length < 5 || name.length > 250) {
+                errors.push({ field: 'name', message: 'Event name must be between 5 and 250 characters.' });
+            }
+
+            const description = document.getElementById('description').value.trim();
+            if (description.length < 10 || description.length > 1000) {
+                errors.push({ field: 'description', message: 'Event description must be between 10 and 1000 characters.' });
+            }
+
+            const maxCapacity = document.getElementById('max_capacity').value.trim();
+            if (!maxCapacity || maxCapacity <= 0) {
+                errors.push({ field: 'max_capacity', message: 'Maximum capacity must be a positive integer.' });
+            }
+
+            const startDatetime = document.getElementById('start_datetime').value.trim();
+            if (!startDatetime) {
+                errors.push({ field: 'start_datetime', message: 'Please enter a valid start date and time.' });
+            }
+
+            const endDatetime = document.getElementById('end_datetime').value.trim();
+            if (!endDatetime) {
+                errors.push({ field: 'end_datetime', message: 'Please enter a valid end date and time.' });
+            } else if (new Date(endDatetime) <= new Date(startDatetime)) {
+                errors.push({ field: 'end_datetime', message: 'End date and time must be after the start date and time.' });
+            }
+
+            return errors;
+        };
+
+        const displayErrors = (errors) => {
+            errors.forEach(error => {
+                const input = document.getElementById(error.field);
+                if (input) {
+                    input.classList.add('is-invalid');
+                    const feedback = document.getElementById(`${error.field}-error`);
+                    if (feedback) {
+                        feedback.textContent = error.message;
                     }
                 }
             });
-        });
 
-        // Display server-side errors
-        function displayErrors(errors) {
-            for (const [field, message] of Object.entries(errors)) {
-                $(`#${field}-error`).text(message);
-                $(`[name=${field}]`).addClass('is-invalid'); // Add Bootstrap's invalid class
+            if (errors.length > 0) {
+                errorBox.textContent = errors.map(error => error.message).join(' ');
+                errorBox.classList.remove('d-none');
             }
-        }
-
-        // Error popup
-        function showError(message) {
-            Swal.fire({
-                icon: 'error',
-                title: 'Error!',
-                text: message,
-                confirmButtonText: 'OK'
-            });
-        }
+        };
     });
 </script>
-</body>
-
-</html>

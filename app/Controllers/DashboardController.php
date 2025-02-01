@@ -3,16 +3,17 @@
 namespace App\Controllers;
 
 use App\Helpers\AuthHelper;
+use App\Models\Attendee;
 use App\Models\Event;
 use App\Models\User;
 use App\Controllers\BaseController;
 use PDO;
 
-
 class DashboardController extends BaseController
 {
     private User $userModel;
     private Event $eventModel;
+    private Attendee $attendeeModel;
     private AuthHelper $authHelper;
 
     public function __construct(PDO $pdo)
@@ -20,22 +21,26 @@ class DashboardController extends BaseController
         parent::__construct($pdo);
         $this->userModel = new User($this->pdo);
         $this->eventModel = new Event($this->pdo);
+        $this->attendeeModel = new Attendee($this->pdo);
         $this->authHelper = new AuthHelper();
     }
 
     public function index()
     {
+        // current user id
         $userId = $this->authHelper->getUserId();
+
+        // fetch the user details
         $user = $this->userModel->getUserById($userId);
 
         if (!$user) {
-            die("User not found");
+            $this->sendJsonResponse(['error' => "Record not found in table: users"], 404);
+            return;
         }
 
         $userCount = $this->userModel->getUserCount();
-        $reportCount = $this->userModel->getUserCount();
-        $eventCount = $this->eventModel->countAllEvents();
-        $attendeeCount = $this->userModel->getUserCount();
+        $eventCount = $this->eventModel->getEventCount();
+        $attendeeCount = $this->attendeeModel->getAttendeeCount();
 
         $this->renderView('dashboard', [
             'title' => 'Dashboard',
@@ -43,11 +48,9 @@ class DashboardController extends BaseController
             'scripts' => [],
             'user' => $user,
             'userCount' => $userCount,
-            'reportCount' => $reportCount,
             'eventCount' => $eventCount,
             'attendeeCount' => $attendeeCount,
             'userId' => $user['id'],
-            'userFullName' => $user['fullname'],
             'userEmail' => $user['email'],
             'userRole' => $user['role'],
             'userCreatedAt' => $user['created_at'],

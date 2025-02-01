@@ -20,13 +20,13 @@
         }
 
         .section-title {
-            color:rgb(105, 105, 105);
+            color: rgb(105, 105, 105);
             font-size: 1.5rem;
             font-weight: bold;
         }
 
         .table th {
-            background-color:rgb(85, 156, 248);
+            background-color: rgb(85, 156, 248);
             color: white;
             font-weight: bold;
         }

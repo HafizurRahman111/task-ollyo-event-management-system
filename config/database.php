@@ -7,7 +7,7 @@ class Database
 
     private function __construct()
     {
-        $dsn = 'mysql:host=127.0.0.1;dbname=event_management_db';
+        $dsn = 'mysql:host=127.0.0.1;dbname=ems_db';
         $username = 'root';
         $password = '';
 

@@ -6,7 +6,6 @@ use App\Models\Event;
 use PDO;
 use Exception;
 
-
 class EventController extends BaseController
 {
     private Event $eventModel;
@@ -84,14 +83,12 @@ class EventController extends BaseController
         }
     }
 
+
     public function create(): void
     {
         $errors = [];
-        $successMessage = $_SESSION['successMessage'] ?? '';
-        unset($_SESSION['successMessage']);
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-
             $name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING);
             $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
             $max_capacity = filter_input(INPUT_POST, 'max_capacity', FILTER_VALIDATE_INT);
@@ -106,6 +103,8 @@ class EventController extends BaseController
 
             if (empty($description)) {
                 $errors['description'] = "Event description is required.";
+            } elseif (strlen($description) < 10 || strlen($description) > 1000) {
+                $errors['description'] = "Event description must be between 10 and 1000 characters.";
             }
 
             if (empty($max_capacity) || $max_capacity <= 0) {
@@ -115,16 +114,22 @@ class EventController extends BaseController
             if (empty($start_datetime) || !strtotime($start_datetime)) {
                 $errors['start_datetime'] = "Please enter a valid start date and time.";
             }
-            if (!strtotime($end_datetime)) {
+
+            if (empty($end_datetime) || !strtotime($end_datetime)) {
                 $errors['end_datetime'] = "Please enter a valid end date and time.";
-            }
-            if (strtotime($end_datetime) <= strtotime($start_datetime)) {
+            } elseif (strtotime($end_datetime) <= strtotime($start_datetime)) {
                 $errors['end_datetime'] = "End date and time must be after the start date and time.";
             }
 
             if (empty($errors)) {
                 try {
                     $slug = $this->generateSlugFromName($name);
+
+                    $existingEvent = $this->eventModel->getEventBySlug($slug);
+
+                    if ($existingEvent) {
+                        $slug = $this->generateUniqueSlugFromName($name);
+                    }
 
                     $eventData = [
                         'name' => $name,
@@ -139,15 +144,8 @@ class EventController extends BaseController
                     $eventId = $this->eventModel->createEvent($eventData);
 
                     if ($eventId) {
-                        $_SESSION['successMessage'] = "Event created successfully.";
-
-                        if ($this->isAjaxRequest()) {
-                            echo json_encode(['success' => true]);
-                            return;
-                        } else {
-                            $this->redirect(BASE_URL . 'events');
-                            return;
-                        }
+                        echo json_encode(['success' => true, 'eventId' => $eventId, 'slug' => $slug]);
+                        return;
                     } else {
                         $errors['general'] = "Failed to create event. Please try again.";
                     }
@@ -160,19 +158,31 @@ class EventController extends BaseController
                 }
             }
 
-            if ($this->isAjaxRequest()) {
-                echo json_encode(['success' => false, 'errors' => $errors]);
-                return;
-            }
+            echo json_encode(['success' => false, 'errors' => $errors]);
+            return;
         }
 
         $this->renderView('events/create', [
             'title' => 'Create Event',
-            'successMessage' => $successMessage,
-            'errors' => $errors,
-            'styles' => [BASE_URL . 'public/assets/css/event.css'],
-            'scripts' => [],
+            'styles' => [BASE_URL . 'public/assets/css/form.css'],
+            'scripts' => [BASE_URL . ''],
         ], 'layouts/dashboard_layout');
+    }
+
+    private function generateUniqueSlugFromName(string $name): string
+    {
+        $slug = $this->generateSlugFromName($name);
+
+        $existingEvent = $this->eventModel->getEventBySlug($slug);
+        $counter = 1;
+
+        while ($existingEvent) {
+            $slug = $this->generateSlugFromName($name) . '-' . $counter;
+            $existingEvent = $this->eventModel->getEventBySlug($slug);
+            $counter++;
+        }
+
+        return $slug;
     }
 
     public function show(int $id): void
@@ -207,7 +217,6 @@ class EventController extends BaseController
             ], 'layouts/dashboard_layout');
         }
     }
-
 
     public function edit(int $id): void
     {
@@ -250,48 +259,45 @@ class EventController extends BaseController
         }
     }
 
+
+
     public function update(int $id): void
     {
         $errors = [];
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Sanitize and validate inputs
             $name = filter_input(INPUT_POST, 'name', FILTER_SANITIZE_STRING);
             $description = filter_input(INPUT_POST, 'description', FILTER_SANITIZE_STRING);
             $max_capacity = filter_input(INPUT_POST, 'max_capacity', FILTER_VALIDATE_INT);
             $start_datetime = filter_input(INPUT_POST, 'start_datetime', FILTER_SANITIZE_STRING);
             $end_datetime = filter_input(INPUT_POST, 'end_datetime', FILTER_SANITIZE_STRING);
 
-            // Validate name
             if (empty($name)) {
                 $errors['name'] = "Event name is required.";
             } elseif (strlen($name) < 5 || strlen($name) > 250) {
                 $errors['name'] = "Event name must be between 5 and 250 characters.";
             }
 
-            // Validate description
             if (empty($description)) {
                 $errors['description'] = "Event description is required.";
+            } elseif (strlen($description) < 10 || strlen($description) > 1000) {
+                $errors['description'] = "Event description must be between 10 and 1000 characters.";
             }
 
-            // Validate max capacity
             if (empty($max_capacity) || $max_capacity <= 0) {
                 $errors['max_capacity'] = "Maximum capacity must be a positive integer.";
             }
 
-            // Validate start datetime
             if (empty($start_datetime) || !strtotime($start_datetime)) {
                 $errors['start_datetime'] = "Please enter a valid start date and time.";
             }
 
-            // Validate end datetime
             if (empty($end_datetime) || !strtotime($end_datetime)) {
                 $errors['end_datetime'] = "Please enter a valid end date and time.";
             } elseif (strtotime($end_datetime) <= strtotime($start_datetime)) {
                 $errors['end_datetime'] = "End date and time must be after the start date and time.";
             }
 
-            // If no errors, proceed to update the event
             if (empty($errors)) {
                 try {
                     $slug = $this->generateSlugFromName($name);
@@ -305,7 +311,6 @@ class EventController extends BaseController
                         'end_datetime' => $end_datetime,
                     ];
 
-                    // Update the event
                     $updated = $this->eventModel->updateEvent($id, $eventData);
 
                     if ($updated) {
@@ -322,11 +327,9 @@ class EventController extends BaseController
             }
         }
 
-        // Fetch the event data to pre-fill the form
         $event = $this->eventModel->getEventById($id);
 
         if (!$event) {
-            // If the event is not found, show a 404 error
             $this->renderView('errors/404', [
                 'title' => 'Event Not Found',
                 'styles' => [BASE_URL . 'public/assets/css/error.css'],
@@ -335,7 +338,6 @@ class EventController extends BaseController
             return;
         }
 
-        // Render the edit form with errors and event data
         $this->renderView('events/edit', [
             'title' => 'Edit Event',
             'styles' => [BASE_URL . 'public/assets/css/event.css'],
@@ -344,6 +346,8 @@ class EventController extends BaseController
             'errors' => $errors,
         ], 'layouts/dashboard_layout');
     }
+
+
 
     public function delete(int $id): void
     {
@@ -394,7 +398,6 @@ class EventController extends BaseController
         }
     }
 
-
     public function search(): void
     {
         $search = filter_input(INPUT_GET, 'search', FILTER_SANITIZE_STRING) ?? '';
@@ -406,10 +409,6 @@ class EventController extends BaseController
             $this->sendJsonResponse(['status' => 'error', 'message' => 'Failed to search events'], 500);
         }
     }
-
-
-
-
 
 
     public function registerAttendee(): void
@@ -540,25 +539,19 @@ class EventController extends BaseController
     }
 
 
-
-
-
     public function generateReport(int $id): void
     {
         try {
-            // Validate event ID
             if ($id <= 0) {
                 $this->renderError('Invalid Event ID', 'The provided event ID is invalid.');
                 return;
             }
 
-            // Fetch event details
             if (!$event = $this->eventModel->getEventById($id)) {
                 $this->renderError('Event Not Found', 'The event you are trying to generate a report for does not exist.');
                 return;
             }
 
-            // Check user permissions
             if (($_SESSION['user_role'] ?? '') !== 'admin') {
                 $this->renderError('Forbidden', 'You do not have permission to generate this report.');
                 return;
@@ -579,9 +572,6 @@ class EventController extends BaseController
             $this->renderError('Server Error', 'An unexpected error occurred while generating the report.');
         }
     }
-
-
-
 
 
     // delete attendee by admin
@@ -628,6 +618,40 @@ class EventController extends BaseController
             $this->sendJsonResponse([
                 'status' => 'error',
                 'message' => 'An unexpected error occurred while deleting the attendee.'
+            ], 500);
+        }
+    }
+
+
+
+    /**
+     * Fetch event details by ID and return as JSON.
+     *
+     * @param int $id The ID of the event.
+     */
+    public function getEventDetails(int $id): void
+    {
+        try {
+            $event = $this->eventModel->getEventById($id);
+
+            if (!$event) {
+                $this->sendJsonResponse([
+                    'status' => 'error',
+                    'message' => 'Event not found.',
+                ], 404);
+                return;
+            }
+
+            $this->sendJsonResponse([
+                'status' => 'success',
+                'data' => $event,
+            ]);
+        } catch (\Exception $e) {
+            $this->logger->error("Error in EventController::getEventDetails: " . $e->getMessage());
+
+            $this->sendJsonResponse([
+                'status' => 'error',
+                'message' => 'An error occurred while fetching event details.',
             ], 500);
         }
     }

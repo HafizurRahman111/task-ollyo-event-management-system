@@ -3,44 +3,22 @@
 declare(strict_types=1);
 
 namespace App\Models;
-
 use PDO;
-use PDOException;
-use App\Utils\Logger;
 
-
-class Event
+class Event extends BaseModel
 {
-    private PDO $pdo;
 
-    public int $id;
-    public string $name;
-    public string $slug;
-    public string $description;
-    public int $max_capacity;
-    public int $created_by;
-    public string $start_datetime;
-    public string $end_datetime;
-    public string $created_at;
-    public string $updated_at;
-
-    protected Logger $logger;
-    public function __construct(PDO $pdo)
-    {
-        $this->pdo = $pdo;
-    }
-
-    // Execute queries safely
-    private function executeQuery(string $query, array $params = []): bool
-    {
-        try {
-            $stmt = $this->pdo->prepare($query);
-            return $stmt->execute($params);
-        } catch (PDOException $e) {
-            error_log("Database Error: " . $e->getMessage());
-            return false;
-        }
-    }
+    // // Execute queries safely
+    // private function executeQuery(string $query, array $params = []): bool
+    // {
+    //     try {
+    //         $stmt = $this->pdo->prepare($query);
+    //         return $stmt->execute($params);
+    //     } catch (PDOException $e) {
+    //         error_log("Database Error: " . $e->getMessage());
+    //         return false;
+    //     }
+    // }
 
     // Fetch single record safely
     private function fetchSingleRecord(string $query, array $params = []): ?array
@@ -149,36 +127,40 @@ class Event
     }
 
 
-    public function countAllEvents(): int
+    // counting events
+    public function getEventCount(): int
     {
-        $stmt = $this->pdo->query("SELECT COUNT(*) AS total_events FROM events");
-        return $stmt->fetch(PDO::FETCH_ASSOC)['total_events'] ?? 0;
+        return $this->count('events');
     }
 
 
     // Create a new event
-    public function createEvent(array $eventData)
+    public function createEvent(array $eventData): ?int
     {
-        try {
-            $query = "INSERT INTO events (name, slug, description, max_capacity, start_datetime, end_datetime, created_by)
-                  VALUES (:name, :slug, :description, :max_capacity, :start_datetime, :end_datetime, :created_by)";
-            $stmt = $this->pdo->prepare($query);
-
-            $stmt->bindValue(':name', $eventData['name'], PDO::PARAM_STR);
-            $stmt->bindValue(':slug', $eventData['slug'], PDO::PARAM_STR);
-            $stmt->bindValue(':description', $eventData['description'], PDO::PARAM_STR);
-            $stmt->bindValue(':max_capacity', $eventData['max_capacity'], PDO::PARAM_INT);
-            $stmt->bindValue(':start_datetime', $eventData['start_datetime'], PDO::PARAM_STR);
-            $stmt->bindValue(':end_datetime', $eventData['end_datetime'], PDO::PARAM_STR);
-            $stmt->bindValue(':created_by', $eventData['created_by'], PDO::PARAM_INT);
-
-            $stmt->execute();
-
-            return $this->pdo->lastInsertId();
-        } catch (PDOException $e) {
-            throw new PDOException("Failed to create event: " . $e->getMessage());
-        }
+        return $this->insert('events', $eventData);
     }
+    // public function createEvent(array $eventData)
+    // {
+    //     try {
+    //         $query = "INSERT INTO events (name, slug, description, max_capacity, start_datetime, end_datetime, created_by)
+    //               VALUES (:name, :slug, :description, :max_capacity, :start_datetime, :end_datetime, :created_by)";
+    //         $stmt = $this->pdo->prepare($query);
+
+    //         $stmt->bindValue(':name', $eventData['name'], PDO::PARAM_STR);
+    //         $stmt->bindValue(':slug', $eventData['slug'], PDO::PARAM_STR);
+    //         $stmt->bindValue(':description', $eventData['description'], PDO::PARAM_STR);
+    //         $stmt->bindValue(':max_capacity', $eventData['max_capacity'], PDO::PARAM_INT);
+    //         $stmt->bindValue(':start_datetime', $eventData['start_datetime'], PDO::PARAM_STR);
+    //         $stmt->bindValue(':end_datetime', $eventData['end_datetime'], PDO::PARAM_STR);
+    //         $stmt->bindValue(':created_by', $eventData['created_by'], PDO::PARAM_INT);
+
+    //         $stmt->execute();
+
+    //         return $this->pdo->lastInsertId();
+    //     } catch (PDOException $e) {
+    //         throw new PDOException("Failed to create event: " . $e->getMessage());
+    //     }
+    // }
 
     // Get an event by ID
     public function getEventById(int $id): ?array
@@ -192,7 +174,9 @@ class Event
             $stmt->bindValue(':id', $id, PDO::PARAM_INT);
             $stmt->execute();
 
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
+            $event = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            return $event ?: null;
         } catch (PDOException $e) {
             throw new PDOException("Failed to fetch event: " . $e->getMessage());
         }
@@ -245,8 +229,6 @@ class Event
     }
 
 
-
-
     public function isUserRegistered(int $eventId, int $userId, string $registrationType): bool
     {
         $query = "SELECT COUNT(*) FROM attendees WHERE event_id = :event_id AND user_id = :user_id AND registration_type = :registration_type";
@@ -280,16 +262,13 @@ class Event
     }
 
 
-
     public function generateEventReport(int $eventId): array|false
     {
-        // Validate event ID
         if ($eventId <= 0) {
             return false;
         }
 
         try {
-            // Fetch event details
             $eventQuery = '
                 SELECT 
                     e.id, 
@@ -312,12 +291,10 @@ class Event
             $eventStmt->execute(['eventId' => $eventId]);
             $event = $eventStmt->fetch(PDO::FETCH_ASSOC);
 
-            // Return false if event not found
             if (!$event) {
                 return false;
             }
 
-            // Fetch attendees with additional details
             $attendeesQuery = '
                 SELECT 
                     a.id AS attendee_id, 
@@ -339,20 +316,16 @@ class Event
             $attendeesStmt->execute(['eventId' => $eventId]);
             $attendees = $attendeesStmt->fetchAll(PDO::FETCH_ASSOC);
 
-            // Return event and attendees data
             return [
                 'event' => $event,
                 'attendees' => $attendees,
             ];
 
         } catch (\PDOException $e) {
-            // Log the error for debugging
-            error_log('PDOException in generateEventReport: ' . $e->getMessage());
+            $this->logger->error('PDOException in generateEventReport: ' . $e->getMessage());
             return false;
         }
     }
-
-
 
 
     // get attendee by id
@@ -377,5 +350,43 @@ class Event
         $stmt->bindParam(':id', $id, PDO::PARAM_INT);
 
         return $stmt->execute();
+    }
+
+    // total attendees
+    public function getAttendeeCount()
+    {
+        $query = "SELECT COUNT(*) AS total_attended FROM attendees";
+        $stmt = $this->pdo->prepare($query);
+        $stmt->execute();
+        return $stmt->fetchColumn() ?: 0;
+    }
+
+
+    /**
+     * Update the event slug.
+     */
+    public function updateEventSlug(int $eventId, string $slug): bool
+    {
+        $query = "UPDATE events SET slug = :slug WHERE id = :id";
+        $stmt = $this->pdo->prepare($query);
+        return $stmt->execute(['slug' => $slug, 'id' => $eventId]);
+    }
+
+    public function getEventBySlug(string $slug): ?array
+    {
+        try {
+            $query = "SELECT * FROM events WHERE slug = :slug LIMIT 1";
+            $stmt = $this->pdo->prepare($query);
+            $stmt->bindParam(':slug', $slug, PDO::PARAM_STR);
+            $stmt->execute();
+
+            $event = $stmt->fetch(PDO::FETCH_ASSOC);
+
+            return $event ? $event : null;
+        } catch (PDOException $e) {
+
+            $this->logger->error("Database error while fetching event by slug: " . $e->getMessage());
+            return null;
+        }
     }
 }

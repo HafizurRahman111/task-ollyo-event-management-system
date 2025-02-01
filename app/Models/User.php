@@ -1,58 +1,13 @@
 <?php
+declare(strict_types=1);
 
 namespace App\Models;
 
 use PDO;
-use Exception;
 
-class User
+
+class User extends BaseModel
 {
-    private PDO $pdo;
-
-    public int $id;
-    public string $fullname;
-    public string $email;
-    public string $password;
-    public string $role;
-    public string $created_at;
-    public string $updated_at;
-
-    public function __construct(PDO $pdo)
-    {
-        $this->pdo = $pdo;
-    }
-
-    // Helper function to handle query execution and exception handling
-    private function executeQuery(string $query, array $params = []): bool
-    {
-        try {
-            $stmt = $this->pdo->prepare($query);
-            foreach ($params as $key => $value) {
-                $stmt->bindValue($key, $value);
-            }
-            return $stmt->execute();
-        } catch (Exception $e) {
-            error_log($e->getMessage());
-            return false;
-        }
-    }
-
-    // Helper function to fetch a single record
-    private function fetchSingleRecord(string $query, array $params = []): ?array
-    {
-        try {
-            $stmt = $this->pdo->prepare($query);
-            foreach ($params as $key => $value) {
-                $stmt->bindValue($key, $value);
-            }
-            $stmt->execute();
-            return $stmt->fetch(PDO::FETCH_ASSOC) ?: null;
-        } catch (Exception $e) {
-            error_log($e->getMessage());
-            return null;
-        }
-    }
-
     // Register a new user
     public function registerUser(string $fullname, string $email, string $password): bool
     {
@@ -77,7 +32,7 @@ class User
     {
         $query = "SELECT 1 FROM users WHERE email = :email LIMIT 1";
         $params = [':email' => $email];
-        return (bool) $this->fetchSingleRecord($query, $params);
+        return (bool) $this->fetchOne($query, $params);
     }
 
     // Get user by email
@@ -85,15 +40,7 @@ class User
     {
         $query = "SELECT * FROM users WHERE email = :email LIMIT 1";
         $params = [':email' => $email];
-        return $this->fetchSingleRecord($query, $params);
-    }
-
-    // Get user by ID
-    public function getUserById(int $id): ?array
-    {
-        $query = "SELECT * FROM users WHERE id = :id LIMIT 1";
-        $params = [':id' => $id];
-        return $this->fetchSingleRecord($query, $params);
+        return $this->fetchOne($query, $params);
     }
 
     // Update user information
@@ -159,13 +106,16 @@ class User
         }
     }
 
-    // In your model or appropriate class
+    // counting users
     public function getUserCount()
     {
-        $query = "SELECT COUNT(*) AS user_count FROM users";
-        $result = $this->fetchAllRecords($query);
+        return $this->count('users');
+    }
 
-        return isset($result[0]['user_count']) ? (int) $result[0]['user_count'] : 0;
+    // get a user by id 
+    public function getUserById(int $id): ?array
+    {
+        return $this->findById('users', $id);
     }
 
     // Create a User object from the database row
@@ -192,5 +142,43 @@ class User
         $userData = $stmt->fetch(PDO::FETCH_ASSOC);
 
         return $userData ? (new self($pdo))->createUserObject($userData) : null;
+    }
+
+
+    public function getUsers(int $page = 1, int $limit = 5, string $search = '', string $sort = 'id', string $order = 'asc'): array
+    {
+        try {
+            $validSortColumns = ['id', 'fullname', 'email', 'role', 'created_at'];
+            $sort = in_array($sort, $validSortColumns) ? $sort : 'id';
+            $order = in_array(strtolower($order), ['asc', 'desc']) ? $order : 'asc';
+
+            $offset = ($page - 1) * $limit;
+
+            $sql = "SELECT * FROM users WHERE fullname LIKE :search ORDER BY $sort $order LIMIT :limit OFFSET :offset";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->bindValue(':search', "%$search%", PDO::PARAM_STR);
+            $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+            $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $users = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $countSql = "SELECT COUNT(*) FROM users WHERE fullname LIKE :search";
+            $countStmt = $this->pdo->prepare($countSql);
+            $countStmt->bindValue(':search', "%$search%", PDO::PARAM_STR);
+            $countStmt->execute();
+            $totalResults = $countStmt->fetchColumn();
+
+            $totalPages = ceil($totalResults / $limit);
+
+            return [
+                'users' => $users,
+                'totalPages' => $totalPages,
+                'totalResults' => $totalResults,
+            ];
+        } catch (\Exception $e) {
+            error_log("Error in UserModel: " . $e->getMessage());
+            throw $e;
+        }
     }
 }

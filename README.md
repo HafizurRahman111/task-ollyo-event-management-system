@@ -15,6 +15,9 @@ This system uses a combination of **PHP**, **MySQL**, **Js**, **HTML**, **CSS**,
 ### Login Credentials
 
 #### Account 
+
+Login URL - [https://127.0.0.1/ems/login]
+
   1. Admin Account: 
       - Email: admin@example.com
       - Password: admin12345
@@ -26,13 +29,8 @@ This system uses a combination of **PHP**, **MySQL**, **Js**, **HTML**, **CSS**,
 ### DB Design
 - **Link:** [Database Design Link](https://drive.google.com/file/d/1WH-RAKDWcwBPLAsbOfweRORfyFRVb4vT/view?usp=drive_link)
 
-### Demo Video
-
-
-
-### Screenshots
-
-
+### Video & Screenshots
+- **Link:** [Link](https://drive.google.com/file/d/1WH-RAKDWcwBPLAsbOfweRORfyFRVb4vT/view?usp=drive_link)
 ---
 
 ## Features & Details
@@ -140,8 +138,9 @@ This system uses a combination of **PHP**, **MySQL**, **Js**, **HTML**, **CSS**,
 
 ### Endpoint
 ```
-GET /ems/api/events/{id}
+GET /ems/api/events/{id}  
 ```
+[https://127.0.0.1/ems/api/events/2]
 
 ### Description
 Fetches an event with details.

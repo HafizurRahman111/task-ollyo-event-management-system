@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use PDO;
+
 class Attendee extends BaseModel
 {
 
@@ -14,18 +16,41 @@ class Attendee extends BaseModel
     }
 
     // Check if a user is registered for an event
-    public function isUserRegistered(int $eventId, int $userId, string $registrationType): bool
+    public function isUserRegistered(int $eventId, int $userId): bool
     {
-        return $this->count(
-            'attendees',
-            'event_id = :event_id AND user_id = :user_id AND registration_type = :registration_type',
-            [
-                ':event_id' => $eventId,
-                ':user_id' => $userId,
-                ':registration_type' => $registrationType,
-            ]
-        ) > 0;
+        $query = 'SELECT COUNT(*) FROM attendees WHERE event_id = :event_id AND user_id = :user_id';
+
+        $stmt = $this->pdo->prepare($query);
+        $stmt->bindParam(':event_id', $eventId, PDO::PARAM_INT);
+        $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+
+        $stmt->execute();
+        $count = $stmt->fetchColumn();
+
+        return $count > 0;
     }
+
+    // Get registration details for an event by user, along with event information
+    public function getRegistrationDetails(int $eventId, int $userId): ?array
+    {
+        $stmt = $this->pdo->prepare(
+            'SELECT a.*, e.* 
+         FROM attendees a
+         LEFT JOIN events e ON a.event_id = e.id
+         WHERE a.event_id = :event_id AND a.user_id = :user_id'
+        );
+
+        $stmt->execute([
+            ':event_id' => $eventId,
+            ':user_id' => $userId,
+        ]);
+
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $result ?: null;
+    }
+
+
 
     // Register an attendee
     public function registerAttendee(array $data): bool
@@ -75,7 +100,7 @@ class Attendee extends BaseModel
     }
 
     // Delete an attendee by ID
-    public function deleteAttendee(int $id): bool
+    public function deleteAttendeeById(int $id): bool
     {
         return $this->delete('attendees', 'id = :id', [':id' => $id]);
     }

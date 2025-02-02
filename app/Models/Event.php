@@ -229,39 +229,6 @@ class Event extends BaseModel
     }
 
 
-    public function isUserRegistered(int $eventId, int $userId, string $registrationType): bool
-    {
-        $query = "SELECT COUNT(*) FROM attendees WHERE event_id = :event_id AND user_id = :user_id AND registration_type = :registration_type";
-        $stmt = $this->pdo->prepare($query);
-        $stmt->execute([
-            'event_id' => $eventId,
-            'user_id' => $userId,
-            'registration_type' => $registrationType
-        ]);
-
-        return $stmt->fetchColumn() > 0;
-    }
-
-    public function registerAttendee(array $data): bool
-    {
-        $query = "INSERT INTO attendees (event_id, user_id, attendee_name, attendee_email, registered_at, registration_type) 
-              VALUES (:event_id, :user_id, :attendee_name, :attendee_email, :registered_at, :registration_type)";
-        $stmt = $this->pdo->prepare($query);
-
-        return $stmt->execute($data);
-    }
-
-
-    public function getRegisteredAttendeesCount($eventId)
-    {
-        $sql = "SELECT COUNT(*) FROM attendees WHERE event_id = :event_id";
-        $stmt = $this->pdo->prepare($sql);
-        $stmt->bindParam(':event_id', $eventId, PDO::PARAM_INT);
-        $stmt->execute();
-        return (int) $stmt->fetchColumn();
-    }
-
-
     public function generateEventReport(int $eventId): array|false
     {
         if ($eventId <= 0) {
@@ -327,39 +294,6 @@ class Event extends BaseModel
         }
     }
 
-
-    // get attendee by id
-    public function getAttendeeById(int $id): ?array
-    {
-        $query = "SELECT * FROM attendees WHERE id = :id LIMIT 1";
-        $stmt = $this->pdo->prepare($query);
-        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-
-        if ($stmt->execute()) {
-            return $stmt->fetch(PDO::FETCH_ASSOC);
-        }
-
-        return null;
-    }
-
-    // delete attendee by id
-    public function deleteAttendee(int $id): bool
-    {
-        $query = "DELETE FROM attendees WHERE id = :id";
-        $stmt = $this->pdo->prepare($query);
-        $stmt->bindParam(':id', $id, PDO::PARAM_INT);
-
-        return $stmt->execute();
-    }
-
-    // total attendees
-    public function getAttendeeCount()
-    {
-        $query = "SELECT COUNT(*) AS total_attended FROM attendees";
-        $stmt = $this->pdo->prepare($query);
-        $stmt->execute();
-        return $stmt->fetchColumn() ?: 0;
-    }
 
 
     /**

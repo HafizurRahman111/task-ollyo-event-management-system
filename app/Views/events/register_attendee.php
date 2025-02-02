@@ -2,8 +2,8 @@
 <html lang="en">
 
 <head>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" />
 
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/css/select2.min.css" />
     <style>
         .error-message {
             color: #dc3545;
@@ -39,17 +39,19 @@
         .submit-btn {
             text-align: right;
         }
+
+        .alert {
+            margin-bottom: 1rem;
+        }
     </style>
 </head>
 
 <body>
-
     <div class="card shadow">
         <div class="card-header bg-primary text-white">
             <h2 class="mb-0">Register for Event</h2>
         </div>
         <div class="card-body">
-
             <div id="successMessage" class="alert alert-success" style="display: none;"></div>
 
             <div id="generalErrorMessage" class="alert alert-danger" style="display: none;"></div>
@@ -80,32 +82,28 @@
                     <p><strong>End:</strong> <span id="eventEnd"></span></p>
                     <p><strong>Available Seats:</strong> <span id="eventAvailable"></span></p>
 
-                    <input type="hidden" name="event_id" id="eventId">
-
-                    <div class="form-group">
-                        <label for="registrationType">Registration Type</label>
-                        <select class="form-control" id="registrationType" name="registration_type" required>
-                            <option value="self">Register Myself</option>
-                            <option value="other">Register Someone Else</option>
-                        </select>
+                    <div id="alreadyRegisteredMessage" class="alert alert-danger fw-bold d-none">
+                        You have already registered for this event.
                     </div>
 
-                    <div class="form-group" id="attendeeNameGroup" style="display: none;">
-                        <label for="attendeeName">Attendee Name</label>
-                        <input type="text" class="form-control" id="attendeeName" name="attendee_name">
-                        <div id="attendeeNameError" class="error-message"></div>
-                    </div>
+                    <div id="registrationFormFields">
+                        <input type="hidden" name="event_id" id="eventId">
 
-                    <div class="form-group" id="attendeeEmailGroup" style="display: none;">
-                        <label for="attendeeEmail">Attendee Email</label>
-                        <input type="email" class="form-control" id="attendeeEmail" name="attendee_email">
-                        <div id="attendeeEmailError" class="error-message"></div>
-                    </div>
+                        <div class="form-group">
+                            <label for="registrationType">Registration Type</label>
+                            <select class="form-control" id="registrationType" name="registration_type" required>
+                                <option value="self" selected>Register Myself</option>
+                                <option value="other">Register Someone Else</option>
+                            </select>
+                        </div>
+                        <div id="attendeeDetails">
+                            <label for="attendee_name">Name</label>
+                            <input type="text" name="attendee_name" class="form-control" required>
+                            <label for="attendee_email">Email</label>
+                            <input type="email" name="attendee_email" class="form-control" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary mt-3">Register</button>
 
-                    <div class="submit-btn">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-save"></i> Register
-                        </button>
                     </div>
                 </div>
             </form>
@@ -115,42 +113,52 @@
     <script src="https://cdn.jsdelivr.net/npm/select2@4.0.13/dist/js/select2.min.js"></script>
     <script>
         $(document).ready(function () {
-            $('#eventSelect').select2({
-                placeholder: "Select an Event",
-                allowClear: true
-            });
+            const baseUrl = 'https://127.0.0.1/ems/';
 
-            $('#eventSelect').change(function () {
-                var selectedEvent = $(this).find(':selected');
-                var eventId = selectedEvent.val();
+            $('#eventSelect').select2({ placeholder: "Select an Event", allowClear: true });
 
+            $('#eventSelect').change(async function () {
+                const eventId = $(this).val();
+                $('#eventIdError').text('');
                 if (eventId) {
-
                     $('#eventDetails').show();
-                    $('#eventName').text(selectedEvent.data('name') || 'N/A');
-                    $('#eventDescription').text(selectedEvent.data('description') || 'No description available');
-                    $('#eventStart').text(selectedEvent.data('start') || 'Not specified');
-                    $('#eventEnd').text(selectedEvent.data('end') || 'Not specified');
-                    $('#eventAvailable').text(selectedEvent.data('available') || 'Not available');
-                    $('#eventId').val(eventId);
-                    $('#registrationType').val('self').trigger('change');
+                    updateEventDetails($(this).find(':selected'));
+                    await checkIfAlreadyRegistered(eventId);
                 } else {
                     $('#eventDetails').hide();
                 }
             });
 
-            $('#registrationType').change(function () {
-                if ($(this).val() === 'other') {
-                    $('#attendeeNameGroup, #attendeeEmailGroup').show();
-                } else {
-                    $('#attendeeNameGroup, #attendeeEmailGroup').hide();
+            function updateEventDetails(selectedEvent) {
+                $('#eventName').text(selectedEvent.data('name'));
+                $('#eventDescription').text(selectedEvent.data('description'));
+                $('#eventStart').text(selectedEvent.data('start'));
+                $('#eventEnd').text(selectedEvent.data('end'));
+                $('#eventAvailable').text(selectedEvent.data('available'));
+                $('#eventId').val(selectedEvent.val());
+            }
+
+            async function checkIfAlreadyRegistered(eventId) {
+                try {
+                    const response = await fetch(`${baseUrl}events/check/${eventId}`);
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        $('#alreadyRegisteredMessage').toggleClass('d-none', !result.alreadyRegistered);
+                        $('#registrationFormFields').toggleClass('d-none', result.alreadyRegistered);
+                    } else {
+                        $('#generalErrorMessage').text(result.error || 'Error checking registration.').show();
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    $('#generalErrorMessage').text('A network error occurred.').show();
                 }
-            });
+            }
 
             $('#registrationForm').submit(function (e) {
                 e.preventDefault();
+                $('#generalErrorMessage').hide();
+                const formData = $(this).serialize();
 
-                var formData = $(this).serialize();
 
                 $.ajax({
                     url: '<?= BASE_URL ?>events/registration',
@@ -161,7 +169,7 @@
                         if (response.success) {
 
                             $('#successMessage').text(response.message).show();
-                            $('#generalErrorMessage').hide();
+                            // $('#generalErrorMessage').hide();
                             $('#registrationForm')[0].reset();
                             $('#attendeeNameGroup, #attendeeEmailGroup').hide();
 
@@ -180,9 +188,15 @@
                     }
                 });
             });
+
+            function displayFormErrors(errors) {
+                $('#generalErrorMessage').text(errors?.general || 'An error occurred.').show();
+                $('#eventIdError').text(errors?.event_id || '');
+                $('#attendeeNameError').text(errors?.attendee_name || '');
+                $('#attendeeEmailError').text(errors?.attendee_email || '');
+            }
         });
     </script>
-
 </body>
 
 </html>

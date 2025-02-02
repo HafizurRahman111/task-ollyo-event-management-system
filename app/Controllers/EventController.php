@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Models\Attendee;
 use App\Models\Event;
 use PDO;
 use Exception;
@@ -9,11 +10,14 @@ use Exception;
 class EventController extends BaseController
 {
     private Event $eventModel;
+    private Attendee $attendeeModel;
 
     public function __construct(PDO $pdo)
     {
         parent::__construct($pdo);
         $this->eventModel = new Event($this->pdo);
+        $this->attendeeModel = new Attendee($this->pdo);
+
     }
 
     public function index(): void
@@ -411,219 +415,6 @@ class EventController extends BaseController
     }
 
 
-    public function registerAttendee(): void
-    {
-        $errors = [];
-        $successMessage = '';
-        $availableEvents = [];
-        $registrationType = filter_input(INPUT_POST, 'registration_type', FILTER_SANITIZE_STRING);
-        $attendeeName = '';
-        $attendeeEmail = '';
-
-        // Check if the request is a POST
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            // Sanitize and validate inputs
-            $eventId = filter_input(INPUT_POST, 'event_id', FILTER_VALIDATE_INT);
-            $userId = $_SESSION['user_id'] ?? null;
-
-            // Validate event ID and user ID
-            if (!$eventId || !$userId) {
-                $errors['general'] = "Invalid event or user.";
-            } else {
-                try {
-                    // Fetch the event by ID
-                    $event = $this->eventModel->getEventById($eventId);
-
-                    // Validate event and registration conditions
-                    if (!$event) {
-                        $errors['general'] = "Event not found.";
-                    } elseif ($this->eventModel->getRegisteredAttendeesCount($eventId) >= $event['max_capacity']) {
-                        $errors['general'] = "Event is already at full capacity.";
-                    } elseif ($this->eventModel->isUserRegistered($eventId, $userId, $registrationType)) {
-                        $errors['general'] = "You have already registered for this event.";
-                    }
-
-                    // Handle attendee details based on registration type
-                    if ($registrationType === 'self') {
-                        if (isset($_SESSION['user_name'], $_SESSION['user_email'])) {
-                            $attendeeName = $_SESSION['user_name'];
-                            $attendeeEmail = $_SESSION['user_email'];
-                        } else {
-                            $errors['general'] = "User details are missing from the session.";
-                        }
-                    } else {
-                        // For "other" registration, sanitize input values
-                        $attendeeName = filter_input(INPUT_POST, 'attendee_name', FILTER_SANITIZE_STRING);
-                        $attendeeEmail = filter_input(INPUT_POST, 'attendee_email', FILTER_VALIDATE_EMAIL);
-
-                        // Validate attendee name and email for "other" registration
-                        if (empty($attendeeName)) {
-                            $errors['attendee_name'] = "Attendee name is required.";
-                        }
-                        if (empty($attendeeEmail) || !$attendeeEmail) {
-                            $errors['attendee_email'] = "A valid attendee email is required.";
-                        }
-                    }
-
-                    // Proceed with registration if no errors
-                    if (empty($errors)) {
-                        // Prepare registration data
-                        $registrationData = [
-                            'event_id' => $eventId,
-                            'user_id' => $userId,
-                            'attendee_name' => $attendeeName,
-                            'attendee_email' => $attendeeEmail,
-                            'registered_at' => date('Y-m-d H:i:s'),
-                            'registration_type' => $registrationType
-                        ];
-
-                        if ($this->eventModel->registerAttendee($registrationData)) {
-                            $successMessage = "Successfully registered for the event.";
-
-                            if ($this->isAjaxRequest()) {
-                                echo json_encode(['success' => true, 'message' => $successMessage, 'redirect_url' => BASE_URL . 'events/view/' . $eventId]);
-
-                            } else {
-                                $_SESSION['successMessage'] = $successMessage;
-                                $this->redirect(BASE_URL . 'events');
-                            }
-                            return;
-                        } else {
-                            $errors['general'] = "Failed to register. Please try again.";
-                        }
-                    }
-                } catch (PDOException $e) {
-                    // Log database errors
-                    $errors['general'] = "A database error occurred. Please try again later.";
-                    $this->logger->error("Database Error in Attendee Registration: " . $e->getMessage());
-                }
-            }
-        }
-
-        // Fetch available events
-        try {
-            $allEvents = $this->eventModel->getAllEvents();
-            foreach ($allEvents as $event) {
-                $registeredCount = $this->eventModel->getRegisteredAttendeesCount($event['id']);
-                if ($event['max_capacity'] > $registeredCount) {
-                    $availableEvents[] = [
-                        'id' => $event['id'],
-                        'name' => $event['name'],
-                        'description' => $event['description'],
-                        'start_datetime' => $event['start_datetime'],
-                        'end_datetime' => $event['end_datetime'],
-                        'max_capacity' => $event['max_capacity'],
-                        'registered_count' => $registeredCount,
-                        'available_count' => $event['max_capacity'] - $registeredCount,
-                    ];
-                }
-            }
-        } catch (PDOException $e) {
-            $errors['general'] = "Failed to fetch available events. Please try again later.";
-            $this->logger->error("Database Error in Fetching Events: " . $e->getMessage());
-        }
-
-        // Handle AJAX response for errors
-        if ($this->isAjaxRequest()) {
-            echo json_encode(['success' => false, 'errors' => $errors]);
-            return;
-        }
-
-        // Render the view with available events and errors
-        $this->renderView('events/register_attendee', [
-            'title' => 'Register for Event',
-            'errors' => $errors,
-            'successMessage' => $successMessage,
-            'availableEvents' => $availableEvents,
-        ], 'layouts/dashboard_layout');
-    }
-
-
-    public function generateReport(int $id): void
-    {
-        try {
-            if ($id <= 0) {
-                $this->renderError('Invalid Event ID', 'The provided event ID is invalid.');
-                return;
-            }
-
-            if (!$event = $this->eventModel->getEventById($id)) {
-                $this->renderError('Event Not Found', 'The event you are trying to generate a report for does not exist.');
-                return;
-            }
-
-            if (($_SESSION['user_role'] ?? '') !== 'admin') {
-                $this->renderError('Forbidden', 'You do not have permission to generate this report.');
-                return;
-            }
-
-            if ($reportData = $this->eventModel->generateEventReport($id)) {
-                $this->renderView('attendees/report', [
-                    'title' => "Event Report: {$event['name']}",
-                    'event' => $event,
-                    'reportData' => $reportData
-                ], 'layouts/dashboard_layout');
-            } else {
-                $this->renderError('Report Generation Failed', 'There was an error generating the report. Please try again later.');
-            }
-        } catch (\Exception $e) {
-            // Log the error
-            $this->logger->error("Error generating report for event ID: $id - " . $e->getMessage());
-            $this->renderError('Server Error', 'An unexpected error occurred while generating the report.');
-        }
-    }
-
-
-    // delete attendee by admin
-    public function deleteAttendee(int $id): void
-    {
-        $userRole = $_SESSION['user_role'] ?? null;
-
-        if ($userRole !== 'admin') {
-            $this->sendJsonResponse([
-                'status' => 'error',
-                'message' => 'You do not have permission to delete this attendee.'
-            ], 403);
-            return;
-        }
-
-        try {
-            $attendee = $this->eventModel->getAttendeeById($id);
-
-            if (!$attendee) {
-                $this->sendJsonResponse([
-                    'status' => 'error',
-                    'message' => 'Attendee not found.'
-                ], 404);
-                return;
-            }
-
-            $success = $this->eventModel->deleteAttendee($id);
-
-            if ($success) {
-                $this->sendJsonResponse([
-                    'status' => 'success',
-                    'message' => 'Attendee deleted successfully.'
-                ], 200);
-            } else {
-                $this->sendJsonResponse([
-                    'status' => 'error',
-                    'message' => 'Attendee could not be deleted.'
-                ], 500);
-            }
-
-        } catch (\Exception $e) {
-            $this->logger->error("Error deleting attendee with ID: " . $id . ' - ' . $e->getMessage());
-
-            $this->sendJsonResponse([
-                'status' => 'error',
-                'message' => 'An unexpected error occurred while deleting the attendee.'
-            ], 500);
-        }
-    }
-
-
-
     /**
      * Fetch event details by ID and return as JSON.
      *
@@ -655,6 +446,5 @@ class EventController extends BaseController
             ], 500);
         }
     }
-
 
 }

@@ -74,8 +74,6 @@
 </head>
 
 <body>
-
-    <!-- Event Details Section -->
     <div class="event-container">
         <h2 class="section-title">Event Details</h2>
         <table class="table table-bordered">
@@ -128,15 +126,12 @@
             </tbody>
         </table>
     </div>
-
-    <!-- Attendees Section -->
     <div class="attendees-container">
         <div class="csv-btn-container">
             <h2 class="section-title">Attendees</h2>
             <button class="btn btn-primary" onclick="downloadCSV()">Download CSV</button>
         </div>
 
-        <!-- Search Field -->
         <input type="text" id="searchInput" class="form-control mb-3" placeholder="Search attendees...">
 
         <?php if (!empty($reportData['attendees'])): ?>
@@ -177,7 +172,6 @@
                 </tbody>
             </table>
 
-            <!-- Pagination Controls -->
             <div class="pagination-container">
                 <button id="prevPage" class="btn btn-secondary" disabled>Previous</button>
                 <span id="pageNumber">1</span>
@@ -189,13 +183,15 @@
     </div>
 
     <script>
+
+        const BASE_URL = "https://127.0.0.1/ems";
+
         document.addEventListener("DOMContentLoaded", function () {
             let currentPage = 1;
             const rowsPerPage = 5;
             const rows = Array.from(document.querySelectorAll("#attendeesBody tr"));
             const searchInput = document.getElementById("searchInput");
 
-            // Function to paginate rows
             function paginateRows() {
                 rows.forEach((row, index) => {
                     row.style.display = (index >= (currentPage - 1) * rowsPerPage && index < currentPage * rowsPerPage) ? "" : "none";
@@ -205,7 +201,6 @@
                 document.getElementById("nextPage").disabled = currentPage * rowsPerPage >= rows.length;
             }
 
-            // Function to filter rows based on search input
             function filterRows() {
                 const query = searchInput.value.toLowerCase();
                 rows.forEach(row => {
@@ -213,7 +208,6 @@
                 });
             }
 
-            // Function to sort rows by column
             function sortTable(columnIndex, order = 'asc') {
                 rows.sort((a, b) => {
                     const aValue = a.cells[columnIndex].textContent.trim().toLowerCase();
@@ -226,28 +220,23 @@
                     }
                 });
 
-                // Re-append sorted rows to the table
                 const tbody = document.querySelector("#attendeesBody");
                 tbody.innerHTML = "";
                 rows.forEach(row => tbody.appendChild(row));
 
-                // Reapply pagination
                 paginateRows();
             }
 
             document.querySelectorAll("#attendeesTable th").forEach((header, index) => {
-                if (index !== 6) { // Skip the "Actions" column
+                if (index !== 6) {
                     header.addEventListener("click", () => {
-                        // Get the current sort order (default: 'asc')
+
                         const currentOrder = header.getAttribute("data-order") || 'asc';
 
-                        // Determine the new sort order (toggle between 'asc' and 'desc')
                         const newOrder = currentOrder === 'asc' ? 'desc' : 'asc';
 
-                        // Set the new order attribute
                         header.setAttribute("data-order", newOrder);
 
-                        // Toggle the visibility of arrows
                         header.querySelector('.sort-indicator').style.display = newOrder === 'asc' ? 'inline' : 'none';
                         header.querySelector('.sort-indicator-down').style.display = newOrder === 'desc' ? 'inline' : 'none';
 
@@ -266,19 +255,15 @@
                 paginateRows();
             });
 
-            // Live search
             searchInput.addEventListener("input", filterRows);
 
-            // Initial pagination
             paginateRows();
 
-            // CSV download functionality
             function downloadCSV() {
                 const eventName = "<?= htmlspecialchars($event['name'], ENT_QUOTES, 'UTF-8') ?>".replace(/\s+/g, '_').toLowerCase();
                 const currentDateTime = new Date();
                 const formattedDateTime = currentDateTime.toISOString().replace(/[-:T]/g, '_').replace(/\.\d{3}Z$/, '');
 
-                // Event details
                 const eventDetails = [
                     ["Event Name", "<?= htmlspecialchars($event['name'], ENT_QUOTES, 'UTF-8') ?>"],
                     ["Description", "<?= htmlspecialchars($event['description'], ENT_QUOTES, 'UTF-8') ?>"],
@@ -292,7 +277,6 @@
                     ["Updated At", "<?= htmlspecialchars($event['updated_at'], ENT_QUOTES, 'UTF-8') ?>"]
                 ];
 
-                // Attendees data
                 const attendeesData = [
                     ["No.", "Name", "Email", "Registration Type", "Registered By", "Registration Time"]
                 ];
@@ -308,7 +292,6 @@
                     ]);
                 });
 
-                // Combine event details and attendees data
                 const csvContent = "data:text/csv;charset=utf-8,"
                     + eventDetails.map(row => row.join(",")).join("\n") + "\n\n"
                     + attendeesData.map(row => row.join(",")).join("\n");
@@ -323,12 +306,67 @@
             }
 
             window.downloadCSV = downloadCSV;
+
         });
 
         function confirmDelete(attendeeId, attendeeName, attendeeEmail) {
-            if (confirm(`Are you sure you want to delete the attendee:\n\nName: ${attendeeName}\nEmail: ${attendeeEmail}`)) {
-                window.location.href = `${BASE_URL}/attendees/delete/${attendeeId}`;
-            }
+            Swal.fire({
+                title: 'Are you sure?',
+                html: `You are about to delete the following attendee:<br><br>
+               <b>ID:</b> ${attendeeId}<br>
+               <b>Name:</b> ${attendeeName}<br>
+               <b>Email:</b> ${attendeeEmail}`,
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#d33',
+                cancelButtonColor: '#3085d6',
+                confirmButtonText: 'Yes, delete it!',
+                cancelButtonText: 'Cancel'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    fetch(`${BASE_URL}/attendees/delete/${attendeeId}`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        }
+                    })
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            if (data.status === 'success') {
+                                Swal.fire({
+                                    title: 'Deleted!',
+                                    text: data.message,
+                                    icon: 'success',
+                                    confirmButtonText: 'OK'
+                                }).then(() => {
+                                    window.location.href = `${BASE_URL}/events`;
+                                });
+                            } else {
+                                Swal.fire({
+                                    title: 'Error!',
+                                    text: data.message || 'Failed to delete the attendee.',
+                                    icon: 'error',
+                                    confirmButtonText: 'OK'
+                                });
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error during deletion:', error);
+                            Swal.fire({
+                                title: 'Error!',
+                                text: 'An unexpected error occurred. Please try again.',
+                                icon: 'error',
+                                confirmButtonText: 'OK'
+                            });
+                        });
+                }
+            });
         }
     </script>
 </body>

@@ -30,7 +30,7 @@ Login URL - [https://127.0.0.1/ems/login]
 - **Link:** [Database Design Link](https://drive.google.com/file/d/1WH-RAKDWcwBPLAsbOfweRORfyFRVb4vT/view?usp=drive_link)
 
 ### Video & Screenshots
-- **Link:** [Link](https://drive.google.com/file/d/1WH-RAKDWcwBPLAsbOfweRORfyFRVb4vT/view?usp=drive_link)
+- **Link:** [Link](https://drive.google.com/drive/folders/1fCg3lzFl4cvPBEJrKezdhqgwx4W157mJ?usp=drive_link)
 ---
 
 ## Features & Details
